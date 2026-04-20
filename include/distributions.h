@@ -18,6 +18,8 @@ namespace thts {
     template <typename T>
     class Distribution {
         public:
+            virtual ~Distribution() = default;
+
             /**
              * Samples an object of type T from the distribution and returns it.
             */
