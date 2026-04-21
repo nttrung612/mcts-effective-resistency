@@ -1177,6 +1177,45 @@ namespace thts {
             return run_ids;
         }
 
+        // expr id: FL12_060_ER_UCT_SMOKE
+        // Small Frozen Lake smoke test for UCT vs ER-UCT
+        if (expr_id == FL12_060_ER_UCT_SMOKE) {
+            string env_id = FL_ENV_ID;
+            string env_instance_id = FL_8x12_TEST;
+            int num_trials = 50000;
+            int max_trial_length = 100;
+            int trials_log_delta = 100;
+            int mc_eval_trials_delta = 500;
+            int rollouts_per_mc_eval = 50;
+            int num_repeats = 1;
+            int num_threads = 4;
+            int eval_threads = 4;
+
+            vector<string> alg_ids = {ALG_ID_UCT, ALG_ID_ER_UCT};
+            for (string alg_id : alg_ids) {
+                unordered_map<string,double> alg_params = {{PARAMS_ID_UCT_BIAS, UctManagerArgs::USE_AUTO_BIAS}};
+                if (alg_id == ALG_ID_ER_UCT) {
+                    alg_params[PARAMS_ID_UCT_ER_C2] = 1.0;
+                }
+                run_ids->push_back(RunID(
+                    env_id,
+                    env_instance_id,
+                    expr_id,
+                    alg_id,
+                    alg_params,
+                    num_trials,
+                    max_trial_length,
+                    trials_log_delta,
+                    mc_eval_trials_delta,
+                    rollouts_per_mc_eval,
+                    num_repeats,
+                    num_threads,
+                    eval_threads));
+            }
+
+            return run_ids;
+        }
+
         // expr id: FL16_050_TEST
         // Test envs for hps selected params
         if (expr_id == FL16_050_TEST) {
