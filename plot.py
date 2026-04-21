@@ -98,14 +98,13 @@ def make_plot_df(
         plt.close()
 
 
-def read_mc_eval_into_arrays(filename, alg_ids, bias_or_temps, replicates, values, num_trialss, epsilons, hmcts_uct_threshs, dents_temps, alg_id=None, num_trials_scale=1):
+def read_mc_eval_into_arrays(filename, alg_ids, bias_or_temps, replicates, values, num_trialss, epsilons, dents_temps, alg_id=None, num_trials_scale=1):
     with open(filename) as f:
         param_ids = f.readline().strip().split(",")
         param_vals = f.readline().strip().split(",")
         _ = f.readline()
 
         epsilon = 0.0
-        uct_thresh = 0
         dents_temp = 0.0
         for param_id, val in zip(param_ids,param_vals):
             if param_id == "alg":
@@ -116,8 +115,6 @@ def read_mc_eval_into_arrays(filename, alg_ids, bias_or_temps, replicates, value
                 dents_temp = float(val)
             elif param_id in ["epsilon"]:
                 epsilon = float(val)
-            elif param_id in ["uct_budget_threshold"]:
-                uct_thresh = int(val)
         
         eval_ids = f.readline().strip().split(",")
         i = 0
@@ -138,15 +135,14 @@ def read_mc_eval_into_arrays(filename, alg_ids, bias_or_temps, replicates, value
             values.append(float(csv_vals[value_idx]))
             num_trialss.append(int(csv_vals[num_trials_idx])/num_trials_scale)
             epsilons.append(float(epsilon))
-            hmcts_uct_threshs.append(uct_thresh)
             dents_temps.append(float(dents_temp))
 
 def read_eval_files(filenames,num_trials_scale):
-    alg_ids, bias_or_temps, replicates, values, num_trialss, epsilons, hmcts_uct_threshs, dents_temps = [], [], [], [], [], [], [], []
+    alg_ids, bias_or_temps, replicates, values, num_trialss, epsilons, dents_temps = [], [], [], [], [], [], []
 
     for filename in filenames:
         alg_id = None
-        poss_alg_ids = ["db-dents","db-ments","dents","ments","puct","rents","tents","uct","hmcts"]
+        poss_alg_ids = ["db-dents","db-ments","dents","ments","puct","rents","tents","uct"]
         for poss_alg_id in poss_alg_ids:
             if poss_alg_id in filename:
                 alg_id = poss_alg_id
@@ -159,12 +155,11 @@ def read_eval_files(filenames,num_trials_scale):
             values=values, 
             num_trialss=num_trialss, 
             epsilons=epsilons,
-            hmcts_uct_threshs=hmcts_uct_threshs,
             dents_temps=dents_temps,
             alg_id=alg_id,
             num_trials_scale=num_trials_scale)
 
-    return alg_ids, bias_or_temps, replicates, values, num_trialss, epsilons, hmcts_uct_threshs, dents_temps
+    return alg_ids, bias_or_temps, replicates, values, num_trialss, epsilons, dents_temps
 
 def make_plot(
     filenames, 
@@ -224,7 +219,7 @@ def make_plot(
 
     filenames = existing_filenames
 
-    alg_ids, bias_or_temps, replicates, values, num_trialss, epsilons, hmcts_uct_threshs, dents_temps = read_eval_files(filenames,num_trials_scale)   
+    alg_ids, bias_or_temps, replicates, values, num_trialss, epsilons, dents_temps = read_eval_files(filenames,num_trials_scale)   
 
     pretty_alg_ids = []
     for i, alg_id in enumerate(alg_ids):
@@ -246,7 +241,6 @@ def make_plot(
         "pretty_alg_id": pretty_alg_ids,
         "replicates": replicates,
         "eps": epsilons,
-        "uct_budget_threshold": hmcts_uct_threshs,
         "dents_temp": dents_temps,
     }
     
@@ -274,8 +268,6 @@ def make_plot(
                 palette[alg_id] = "tab:purple"
             if "RENTS" in alg_id:
                 palette[alg_id] = "tab:brown"
-            if "HMCTS" in alg_id:
-                palette[alg_id] = "tab:grey"
 
     markers = None
     if add_markers:
@@ -456,7 +448,6 @@ if __name__ == "__main__":
         filenames += glob.glob("results/frozen_lake_env/FL_8x12_test/052_fl12_test/dents/eval_*.csv")
         filenames += glob.glob("results/frozen_lake_env/FL_8x12_test/052_fl12_test/rents/eval_*.csv")
         filenames += glob.glob("results/frozen_lake_env/FL_8x12_test/052_fl12_test/tents/eval_*.csv")
-        filenames += glob.glob("results/frozen_lake_env/FL_8x12_test/052_fl12_test/hmcts/eval_*.csv")
         puct_filename = None
         for filename in filenames:
             if "puct" in filename:
@@ -481,7 +472,6 @@ if __name__ == "__main__":
         filenames += glob.glob("results/sailing_env/6_test/092_s6_test/dents/eval_*.csv")
         filenames += glob.glob("results/sailing_env/6_test/092_s6_test/rents/eval_*.csv")
         filenames += glob.glob("results/sailing_env/6_test/092_s6_test/tents/eval_*.csv")
-        filenames += glob.glob("results/sailing_env/6_test/092_s6_test/hmcts/eval_*.csv")
         make_plot(
             filenames=filenames,
             plot_filename="plots/000_fig_sail.png",
@@ -505,7 +495,6 @@ if __name__ == "__main__":
         filenames = [
             "results/dchain_env/10-1.0/021_len_10_main_paper/ments/eval_epsilon=0.1,temp=1.csv",
             "results/dchain_env/10-1.0/021_len_10_main_paper/db-ments/eval_epsilon=0.1,temp=1.csv",
-            # "results/dchain_env/10-1.0/021_len_10_main_paper/hmcts/eval_uct_budget_threshold=30,hmcts_total_budget=10000,bias=100.csv",
         ]
         make_plot(
             filenames=filenames,
@@ -519,8 +508,6 @@ if __name__ == "__main__":
     if "000_rebuttal_two" in sys.argv or "all" in sys.argv:
         filenames = glob.glob("results/frozen_lake_env/FL_8x12_test/052_fl12_test/ments/eval_*.csv")
         filenames += glob.glob("results/frozen_lake_env/FL_8x12_test/052_fl12_test/db-ments/eval_*.csv")
-        # filenames += glob.glob("results/frozen_lake_env/FL_8x12_test/052_fl12_test/hmcts/eval_*.csv")
-        # filenames += glob.glob("results/frozen_lake_env/FL_8x12_test/052_fl12_test/uct/eval_*.csv")
         make_plot(
             filenames=filenames,
             plot_filename="plots/000_rebuttal_fl.png",
@@ -630,24 +617,6 @@ if __name__ == "__main__":
                 y_axis_range=[0.0,1.1],
                 use_legend=False)
             
-    if "001_10chain_hmcts_01" in sys.argv or "all" in sys.argv or expr_id in sys.argv:
-        prefix = "results/dchain_env/10-1.0/001_len_10/hmcts/eval_"
-        filenames = glob.glob(prefix + "*.csv")
-        for filename in filenames:
-            params = filename[len(prefix):-4]
-            make_plot(
-                filenames=[filename],
-                plot_filename="plots/001_10chain_01_hmcts_{params}.png".format(params=params),
-                hue_key="pretty_alg_id",
-                num_trials_truncate=10000,
-                y_axis_range=[0.0,1.1],
-                use_legend=False)
-        
-
-
-
-
-
     #
     # 10-chain, R_f = 0.5
     #
@@ -743,24 +712,6 @@ if __name__ == "__main__":
                 y_axis_range=[0.0,1.1],
                 use_legend=False)
             
-    if "001_10chain5_hmcts_01" in sys.argv or "all" in sys.argv or expr_id in sys.argv:
-        prefix = "results/dchain_env/10-0.5/001_len_10/hmcts/eval_"
-        filenames = glob.glob(prefix + "*.csv")
-        for filename in filenames:
-            params = filename[len(prefix):-4]
-            make_plot(
-                filenames=[filename],
-                plot_filename="plots/001_10chain5_01_hmcts_{params}.png".format(params=params),
-                hue_key="pretty_alg_id",
-                num_trials_truncate=10000,
-                y_axis_range=[0.0,1.1],
-                use_legend=False)
-        
-
-
-
-
-
     #
     # 20-chain, R_f = 1.0
     #
@@ -1129,19 +1080,6 @@ if __name__ == "__main__":
             num_trials_truncate=1000000,
             sep_eps_plots=True)
         
-    if "051_08_fl12_hps_hmcts_01" in sys.argv or "all" in sys.argv or expr_id in sys.argv:
-        filenames = glob.glob("results/frozen_lake_env/FL_8x12/051_fl12_hps/hmcts/eval_*.csv")
-        make_plot(
-            filenames=filenames,
-            plot_filename="plots/051_08_fl12_hps_hmcts_01.png",
-            hue_key="uct_budget_threshold",
-            num_trials_truncate=1000000,
-            hue_per_algo=False)
-        
-
-
-
-
     #
     # FL, 8x12 test
     #
@@ -1262,19 +1200,6 @@ if __name__ == "__main__":
             num_trials_truncate=1000000,
             sep_eps_plots=True)
         
-    if "091_08_s6_hps_hmcts_01" in sys.argv or "all" in sys.argv or expr_id in sys.argv:
-        filenames = glob.glob("results/sailing_env/6/091_s6_hps/hmcts/eval_*.csv")
-        make_plot(
-            filenames=filenames,
-            plot_filename="plots/091_08_s6_hps_hmcts_01.png",
-            hue_key="uct_budget_threshold",
-            num_trials_truncate=1000000,
-            hue_per_algo=False)
-        
-
-
-
-
     #
     # S6 test
     #

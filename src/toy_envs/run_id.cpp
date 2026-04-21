@@ -17,7 +17,6 @@
 
 #include "algorithms/uct/uct_decision_node.h"
 #include "algorithms/uct/puct_decision_node.h"
-#include "algorithms/uct/hmcts_decision_node.h"
 #include "algorithms/ments/ments_decision_node.h"
 #include "algorithms/ments/dbments_decision_node.h"
 #include "algorithms/ments/dents/dents_decision_node.h"
@@ -137,16 +136,6 @@ namespace thts {
             manager_args.bias = alg_params.at(PARAMS_ID_UCT_BIAS);
             return make_shared<PuctManager>(manager_args);
         }
-        if (alg_id == ALG_ID_HMCTS) {
-            HmctsManagerArgs manager_args(env);
-            manager_args.max_depth = max_trial_length;
-            manager_args.mcts_mode = false;
-            manager_args.bias = alg_params.at(PARAMS_ID_UCT_BIAS);
-            manager_args.total_budget = alg_params.at(PARAMS_ID_HMCTS_BUDGET);
-            manager_args.uct_budget_threshold = alg_params.at(PARAMS_ID_HMCTS_UCT_BUDGET_THRESHOLD);
-            manager_args.recommend_most_visited = false;
-            return make_shared<HmctsManager>(manager_args);
-        }
         if (alg_id == ALG_ID_MENTS || 
             alg_id == ALG_ID_RENTS || 
             alg_id == ALG_ID_TENTS) 
@@ -209,10 +198,6 @@ namespace thts {
             shared_ptr<PuctManager> puct_manager = static_pointer_cast<PuctManager>(manager);
             return make_shared<PuctDNode>(puct_manager, env->get_initial_state_itfc(), 0, 0);
         }
-        if (alg_id == ALG_ID_HMCTS) {
-            shared_ptr<HmctsManager> hmcts_manager = static_pointer_cast<HmctsManager>(manager);
-            return make_shared<HmctsDNode>(hmcts_manager, env->get_initial_state_itfc(), 0, 0);
-        }
         if (alg_id == ALG_ID_MENTS) {
             shared_ptr<MentsManager> ments_manager = static_pointer_cast<MentsManager>(manager);
             return make_shared<MentsDNode>(ments_manager, env->get_initial_state_itfc(), 0, 0);
@@ -241,7 +226,7 @@ namespace thts {
      * Returns a logger to use with this run
     */
     shared_ptr<ThtsLogger> RunID::get_logger() {
-        if (alg_id == ALG_ID_UCT || alg_id == ALG_ID_PUCT || alg_id == ALG_ID_HMCTS) {
+        if (alg_id == ALG_ID_UCT || alg_id == ALG_ID_PUCT) {
             shared_ptr<ThtsLogger> logger = make_shared<UctLogger>();
             logger->set_trials_delta(trials_log_delta);
             return logger;
@@ -464,33 +449,6 @@ namespace thts {
                                 num_threads,
                                 eval_threads));
                         }
-                    }
-                }
-
-                alg_ids = {ALG_ID_HMCTS};
-                vector<int> uct_thresholds = { 1, 3, 10, 30, 100, 300, 1000};
-                for (string alg_id : alg_ids) {
-                    for (int thresh : uct_thresholds) {
-                        unordered_map<string,double> alg_params = 
-                        {
-                            {PARAMS_ID_UCT_BIAS, 100.0},
-                            {PARAMS_ID_HMCTS_BUDGET, num_trials},
-                            {PARAMS_ID_HMCTS_UCT_BUDGET_THRESHOLD, thresh},
-                        };
-                        run_ids->push_back(RunID(
-                            env_id,
-                            env_instance_id,
-                            expr_id,
-                            alg_id,
-                            alg_params,
-                            num_trials,
-                            max_trial_length,
-                            trials_log_delta,
-                            mc_eval_trials_delta,
-                            rollouts_per_mc_eval,
-                            num_repeats,
-                            num_threads,
-                            eval_threads));
                     }
                 }
 
@@ -945,27 +903,6 @@ namespace thts {
                     }
                 }
 
-                // HMCTS
-                unordered_map<string,double> alg_params = 
-                    {
-                        {PARAMS_ID_UCT_BIAS, 100.0},
-                        {PARAMS_ID_HMCTS_BUDGET, num_trials},
-                        {PARAMS_ID_HMCTS_UCT_BUDGET_THRESHOLD, 30},
-                    };
-                run_ids->push_back(RunID(
-                    env_id,
-                    env_instance_id,
-                    expr_id,
-                    ALG_ID_HMCTS,
-                    alg_params,
-                    num_trials,
-                    max_trial_length,
-                    trials_log_delta,
-                    mc_eval_trials_delta,
-                    rollouts_per_mc_eval,
-                    num_repeats,
-                    num_threads,
-                    eval_threads));
             }
 
             return run_ids;
@@ -1044,34 +981,6 @@ namespace thts {
                     }
                 }
             }
-
-            vector<int> uct_thresholds = { 10, 30, 100, 300, 1000, 3000, 10000, 30000, 100000};
-            uct_biases = { UctManagerArgs::USE_AUTO_BIAS, 0.1, 1.0, 10.0, 100.0 };
-            for (double bias : uct_biases) {
-                for (int thresh : uct_thresholds) {
-                    unordered_map<string,double> alg_params = 
-                    {
-                        {PARAMS_ID_UCT_BIAS, bias},
-                        {PARAMS_ID_HMCTS_BUDGET, num_trials},
-                        {PARAMS_ID_HMCTS_UCT_BUDGET_THRESHOLD, thresh},
-                    };
-                    run_ids->push_back(RunID(
-                        env_id,
-                        env_instance_id,
-                        expr_id,
-                        ALG_ID_HMCTS,
-                        alg_params,
-                        num_trials,
-                        max_trial_length,
-                        trials_log_delta,
-                        mc_eval_trials_delta,
-                        rollouts_per_mc_eval,
-                        num_repeats,
-                        num_threads,
-                        eval_threads));
-                }
-            }
-
             return run_ids;
         }
 
@@ -1230,28 +1139,6 @@ namespace thts {
                     }
                 }
             }
-
-            unordered_map<string,double> alg_params = 
-            {
-                {PARAMS_ID_UCT_BIAS, UctManagerArgs::USE_AUTO_BIAS},
-                {PARAMS_ID_HMCTS_BUDGET, num_trials},
-                {PARAMS_ID_HMCTS_UCT_BUDGET_THRESHOLD, 3000},
-            };
-            run_ids->push_back(RunID(
-                env_id,
-                env_instance_id,
-                expr_id,
-                ALG_ID_HMCTS,
-                alg_params,
-                num_trials,
-                max_trial_length,
-                trials_log_delta,
-                mc_eval_trials_delta,
-                rollouts_per_mc_eval,
-                num_repeats,
-                num_threads,
-                eval_threads));
-
             return run_ids;
         }
 
@@ -1482,35 +1369,6 @@ namespace thts {
                     }
                 }
             }
-
-            vector<int> uct_thresholds = { 10, 30, 100, 300, 1000, 3000, 10000, 30000, 100000};
-            uct_biases = { UctManagerArgs::USE_AUTO_BIAS, 0.1, 1.0, 10.0, 100.0 };
-            for (double bias : uct_biases) {
-                for (int thresh : uct_thresholds) {
-                    unordered_map<string,double> alg_params = 
-                    {
-                        {PARAMS_ID_UCT_BIAS, bias},
-                        {PARAMS_ID_HMCTS_BUDGET, num_trials},
-                        {PARAMS_ID_HMCTS_UCT_BUDGET_THRESHOLD, thresh},
-                        {PARAMS_ID_MENTS_DEFAULT_Q_VALUE, default_q_value},
-                    };
-                    run_ids->push_back(RunID(
-                        env_id,
-                        env_instance_id,
-                        expr_id,
-                        ALG_ID_HMCTS,
-                        alg_params,
-                        num_trials,
-                        max_trial_length,
-                        trials_log_delta,
-                        mc_eval_trials_delta,
-                        rollouts_per_mc_eval,
-                        num_repeats,
-                        num_threads,
-                        eval_threads));
-                }
-            }
-
             return run_ids;
         }
         
@@ -1596,29 +1454,6 @@ namespace thts {
                     num_threads,
                     eval_threads));
             }
-
-            unordered_map<string,double> alg_params = 
-            {
-                {PARAMS_ID_UCT_BIAS, UctManagerArgs::USE_AUTO_BIAS},
-                {PARAMS_ID_HMCTS_BUDGET, num_trials},
-                {PARAMS_ID_HMCTS_UCT_BUDGET_THRESHOLD, 30},
-                {PARAMS_ID_MENTS_DEFAULT_Q_VALUE, default_q_value},
-            };
-            run_ids->push_back(RunID(
-                env_id,
-                env_instance_id,
-                expr_id,
-                ALG_ID_HMCTS,
-                alg_params,
-                num_trials,
-                max_trial_length,
-                trials_log_delta,
-                mc_eval_trials_delta,
-                rollouts_per_mc_eval,
-                num_repeats,
-                num_threads,
-                eval_threads));
-
             return run_ids;
         }
 
