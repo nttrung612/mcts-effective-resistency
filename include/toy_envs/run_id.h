@@ -74,6 +74,7 @@ static const std::string FL8_059_SENS = "059_fl8_0_001";
 
 // alg ids
 static const std::string ALG_ID_UCT = "uct";
+static const std::string ALG_ID_FIXED_DEPTH_UCT = "fixed-depth-uct";
 static const std::string ALG_ID_PUCT = "puct";
 static const std::string ALG_ID_MENTS = "ments";
 static const std::string ALG_ID_DENTS = "dents";

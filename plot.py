@@ -142,7 +142,7 @@ def read_eval_files(filenames,num_trials_scale):
 
     for filename in filenames:
         alg_id = None
-        poss_alg_ids = ["db-dents","db-ments","dents","ments","puct","rents","tents","uct"]
+        poss_alg_ids = ["fixed-depth-uct","db-dents","db-ments","dents","ments","puct","rents","tents","uct"]
         for poss_alg_id in poss_alg_ids:
             if poss_alg_id in filename:
                 alg_id = poss_alg_id
@@ -256,6 +256,8 @@ def make_plot(
                 dashes[alg_id] = (4,2)
             if "UCT" in alg_id:
                 palette[alg_id] = "tab:green"
+            if "FIXED-DEPTH-UCT" in alg_id:
+                palette[alg_id] = "tab:olive"
             if "PUCT" in alg_id:
                 palette[alg_id] = "tab:gray"
             if "MENTS" in alg_id:
@@ -430,6 +432,7 @@ if __name__ == "__main__":
         
     if "000_fig_fl" in sys.argv or "all" in sys.argv or "all_figs" in sys.argv:
         filenames = glob.glob("results/frozen_lake_env/FL_8x12_test/052_fl12_test/uct/eval_*.csv")
+        filenames += glob.glob("results/frozen_lake_env/FL_8x12_test/052_fl12_test/fixed-depth-uct/eval_*.csv")
         filenames += glob.glob("results/frozen_lake_env/FL_8x12_test/052_fl12_test/ments/eval_*.csv")
         filenames += glob.glob("results/frozen_lake_env/FL_8x12_test/052_fl12_test/est/eval_*.csv")
         filenames += glob.glob("results/frozen_lake_env/FL_8x12_test/052_fl12_test/dents/eval_*.csv")
@@ -442,6 +445,7 @@ if __name__ == "__main__":
     if "000_fig_fl_full" in sys.argv or "all" in sys.argv or "all_figs" in sys.argv:
         # filenames = glob.glob("results/frozen_lake_env/FL_8x12_test/052_fl12_test/*/eval_*.csv")
         filenames = glob.glob("results/frozen_lake_env/FL_8x12_test/052_fl12_test/uct/eval_*.csv")
+        filenames += glob.glob("results/frozen_lake_env/FL_8x12_test/052_fl12_test/fixed-depth-uct/eval_*.csv")
         filenames += glob.glob("results/frozen_lake_env/FL_8x12_test/052_fl12_test/ments/eval_*.csv")
         filenames += glob.glob("results/frozen_lake_env/FL_8x12_test/052_fl12_test/est/eval_*.csv")
         # filenames += glob.glob("results/frozen_lake_env/FL_8x12_test/052_fl12_test/db-ments/eval_*.csv")
@@ -467,6 +471,7 @@ if __name__ == "__main__":
         
     if "000_fig_sail" in sys.argv or "all" in sys.argv or "all_figs" in sys.argv:
         filenames = glob.glob("results/sailing_env/6_test/092_s6_test/uct/eval_*.csv")
+        filenames += glob.glob("results/sailing_env/6_test/092_s6_test/fixed-depth-uct/eval_*.csv")
         filenames += glob.glob("results/sailing_env/6_test/092_s6_test/ments/eval_*.csv")
         filenames += glob.glob("results/sailing_env/6_test/092_s6_test/est/eval_*.csv")
         filenames += glob.glob("results/sailing_env/6_test/092_s6_test/dents/eval_*.csv")

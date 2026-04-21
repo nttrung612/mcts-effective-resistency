@@ -16,6 +16,7 @@
 #include "thts_env.h"
 
 #include "algorithms/uct/uct_decision_node.h"
+#include "algorithms/uct/fixed_depth_uct_decision_node.h"
 #include "algorithms/uct/puct_decision_node.h"
 #include "algorithms/ments/ments_decision_node.h"
 #include "algorithms/ments/dbments_decision_node.h"
@@ -122,7 +123,7 @@ namespace thts {
      * Create thts manager
     */
     shared_ptr<ThtsManager> RunID::get_thts_manager(shared_ptr<ThtsEnv> env) {
-        if (alg_id == ALG_ID_UCT) {
+        if (alg_id == ALG_ID_UCT || alg_id == ALG_ID_FIXED_DEPTH_UCT) {
             UctManagerArgs manager_args(env);
             manager_args.max_depth = max_trial_length;
             manager_args.mcts_mode = false;
@@ -194,6 +195,10 @@ namespace thts {
             shared_ptr<UctManager> uct_manager = static_pointer_cast<UctManager>(manager);
             return make_shared<UctDNode>(uct_manager, env->get_initial_state_itfc(), 0, 0);
         }
+        if (alg_id == ALG_ID_FIXED_DEPTH_UCT) {
+            shared_ptr<UctManager> uct_manager = static_pointer_cast<UctManager>(manager);
+            return make_shared<FixedDepthUctDNode>(uct_manager, env->get_initial_state_itfc(), 0, 0);
+        }
         if (alg_id == ALG_ID_PUCT) {
             shared_ptr<PuctManager> puct_manager = static_pointer_cast<PuctManager>(manager);
             return make_shared<PuctDNode>(puct_manager, env->get_initial_state_itfc(), 0, 0);
@@ -226,7 +231,7 @@ namespace thts {
      * Returns a logger to use with this run
     */
     shared_ptr<ThtsLogger> RunID::get_logger() {
-        if (alg_id == ALG_ID_UCT || alg_id == ALG_ID_PUCT) {
+        if (alg_id == ALG_ID_UCT || alg_id == ALG_ID_FIXED_DEPTH_UCT || alg_id == ALG_ID_PUCT) {
             shared_ptr<ThtsLogger> logger = make_shared<UctLogger>();
             logger->set_trials_delta(trials_log_delta);
             return logger;
@@ -313,7 +318,7 @@ namespace thts {
 
             for (string env_instance_id : env_instance_ids) {
 
-                vector<string> alg_ids = {ALG_ID_UCT, ALG_ID_PUCT};
+                vector<string> alg_ids = {ALG_ID_UCT, ALG_ID_FIXED_DEPTH_UCT, ALG_ID_PUCT};
                 vector<double> uct_biases = { UctManagerArgs::USE_AUTO_BIAS, 0.1, 1.0, 10.0, 100.0 };
                 for (string alg_id : alg_ids) {
                     for (double bias : uct_biases) {
@@ -473,7 +478,7 @@ namespace thts {
             int eval_threads = 32;
 
             for (string env_instance_id : env_instance_ids) {
-                vector<string> alg_ids = {ALG_ID_UCT, ALG_ID_PUCT};
+                vector<string> alg_ids = {ALG_ID_UCT, ALG_ID_FIXED_DEPTH_UCT, ALG_ID_PUCT};
                 vector<double> uct_biases = { UctManagerArgs::USE_AUTO_BIAS, 0.1, 1.0, 10.0, 100.0 };
                 for (string alg_id : alg_ids) {
                     for (double bias : uct_biases) {
@@ -801,7 +806,7 @@ namespace thts {
 
             for (string env_instance_id : env_instance_ids) {
 
-                vector<string> alg_ids = {ALG_ID_UCT, ALG_ID_PUCT};
+                vector<string> alg_ids = {ALG_ID_UCT, ALG_ID_FIXED_DEPTH_UCT, ALG_ID_PUCT};
                 vector<double> uct_biases = { UctManagerArgs::USE_AUTO_BIAS };
                 for (string alg_id : alg_ids) {
                     for (double bias : uct_biases) {
@@ -931,7 +936,7 @@ namespace thts {
             int num_threads = 32;
             int eval_threads = 32;
 
-            vector<string> alg_ids = {ALG_ID_UCT, ALG_ID_PUCT};
+            vector<string> alg_ids = {ALG_ID_UCT, ALG_ID_FIXED_DEPTH_UCT, ALG_ID_PUCT};
             vector<double> uct_biases = { UctManagerArgs::USE_AUTO_BIAS, 0.1, 1.0, 10.0, 100.0 };
             for (string alg_id : alg_ids) {
                 for (double bias : uct_biases) {
@@ -1043,7 +1048,7 @@ namespace thts {
             int num_threads = 32;
             int eval_threads = 32;
 
-            vector<string> alg_ids = {ALG_ID_UCT, ALG_ID_PUCT};
+            vector<string> alg_ids = {ALG_ID_UCT, ALG_ID_FIXED_DEPTH_UCT, ALG_ID_PUCT};
             for (string alg_id : alg_ids) {
                 double bias = UctManagerArgs::USE_AUTO_BIAS;
                 unordered_map<string,double> alg_params = {{PARAMS_ID_UCT_BIAS, bias}};
@@ -1156,7 +1161,7 @@ namespace thts {
             int num_threads = 32;
             int eval_threads = 32;
 
-            vector<string> alg_ids = {ALG_ID_UCT, ALG_ID_PUCT};
+            vector<string> alg_ids = {ALG_ID_UCT, ALG_ID_FIXED_DEPTH_UCT, ALG_ID_PUCT};
             for (string alg_id : alg_ids) {
                 double bias = UctManagerArgs::USE_AUTO_BIAS;
                 unordered_map<string,double> alg_params = {{PARAMS_ID_UCT_BIAS, bias}};
@@ -1318,7 +1323,7 @@ namespace thts {
 
             double default_q_value = -200.0;
 
-            vector<string> alg_ids = {ALG_ID_UCT, ALG_ID_PUCT};
+            vector<string> alg_ids = {ALG_ID_UCT, ALG_ID_FIXED_DEPTH_UCT, ALG_ID_PUCT};
             vector<double> uct_biases = { UctManagerArgs::USE_AUTO_BIAS, 0.1, 1.0, 10.0, 100.0 };
             for (string alg_id : alg_ids) {
                 for (double bias : uct_biases) {
@@ -1388,7 +1393,7 @@ namespace thts {
 
             double default_q_value = -200.0;
 
-            vector<string> alg_ids = {ALG_ID_UCT, ALG_ID_PUCT};
+            vector<string> alg_ids = {ALG_ID_UCT, ALG_ID_FIXED_DEPTH_UCT, ALG_ID_PUCT};
             for (string alg_id : alg_ids) {
                 double bias = UctManagerArgs::USE_AUTO_BIAS;
                 unordered_map<string,double> alg_params = {{PARAMS_ID_UCT_BIAS, bias}};
