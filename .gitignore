@@ -1,5 +1,6 @@
 # Folders in other branches
 py
+.venv
 
 # Outputs
 thts-test

@@ -205,6 +205,25 @@ def make_plot(
     if num_trials_scale > 1:
         xaxis_lab += " (x{scale})".format(scale=num_trials_scale)
 
+    existing_filenames = [filename for filename in filenames if os.path.exists(filename)]
+    missing_filenames = [filename for filename in filenames if not os.path.exists(filename)]
+
+    if missing_filenames:
+        print("[plot.py] Skipping {n} missing files for {plot_file}".format(
+            n=len(missing_filenames),
+            plot_file=plot_filename))
+        for missing_filename in missing_filenames[:5]:
+            print("  - {filename}".format(filename=missing_filename))
+        if len(missing_filenames) > 5:
+            print("  - ...")
+
+    if len(existing_filenames) == 0:
+        print("[plot.py] No input files found for {plot_file}, skipping.".format(
+            plot_file=plot_filename))
+        return
+
+    filenames = existing_filenames
+
     alg_ids, bias_or_temps, replicates, values, num_trialss, epsilons, hmcts_uct_threshs, dents_temps = read_eval_files(filenames,num_trials_scale)   
 
     pretty_alg_ids = []
