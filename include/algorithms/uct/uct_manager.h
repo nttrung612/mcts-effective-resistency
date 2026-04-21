@@ -15,12 +15,14 @@ namespace thts {
         static const bool recommend_most_visited_default=true;
         static constexpr double epsilon_exploration_default=0.0;
         static constexpr double er_c2_default=0.0;
+        static constexpr double power_mean_p_default=1.0;
 
         double bias;
         int heuristic_psuedo_trials;
         bool recommend_most_visited;
         double epsilon_exploration;
         double er_c2;
+        double power_mean_p;
 
         UctManagerArgs(std::shared_ptr<ThtsEnv> thts_env) :
             ThtsManagerArgs(thts_env),
@@ -28,7 +30,8 @@ namespace thts {
             heuristic_psuedo_trials(heuristic_psuedo_trials_default),
             recommend_most_visited(recommend_most_visited_default),
             epsilon_exploration(epsilon_exploration_default),
-            er_c2(er_c2_default) {}
+            er_c2(er_c2_default),
+            power_mean_p(power_mean_p_default) {}
 
         virtual ~UctManagerArgs() = default;
     };
@@ -53,6 +56,8 @@ namespace thts {
      *          This value should be in the range [0,1].
     *      er_c2:
     *          The coefficient for the effective-resistance bonus term c2 / N(s,a). A value of zero disables it.
+    *      power_mean_p:
+    *          The exponent used for power-mean backups. p=1 preserves the standard arithmetic mean backup.
      */
     class UctManager : public ThtsManager {
         public:
@@ -64,6 +69,7 @@ namespace thts {
             bool recommend_most_visited;
             double epsilon_exploration;
             double er_c2;
+            double power_mean_p;
 
             UctManager(const UctManagerArgs& args) :
                 ThtsManager(args),
@@ -71,6 +77,7 @@ namespace thts {
                 heuristic_psuedo_trials(args.heuristic_psuedo_trials),
                 recommend_most_visited(args.recommend_most_visited),
                 epsilon_exploration(args.epsilon_exploration),
-                er_c2(args.er_c2) {};
+                er_c2(args.er_c2),
+                power_mean_p(args.power_mean_p) {};
     };
 }

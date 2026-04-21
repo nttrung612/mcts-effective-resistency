@@ -36,7 +36,12 @@ namespace thts {
         const double trial_cumulative_return,
         ThtsEnvContext& ctx)
     {   
-        backup_soft();
+        MentsManager& manager = (MentsManager&) *thts_manager;
+        if (manager.use_power_mean_backup) {
+            backup_power_mean();
+        } else {
+            backup_soft();
+        }
         backup_dp<DBMentsDNode>(children, local_reward, is_opponent());
     }
 

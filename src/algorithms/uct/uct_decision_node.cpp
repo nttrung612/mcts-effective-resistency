@@ -1,5 +1,7 @@
 #include "algorithms/uct/uct_decision_node.h"
 
+#include "algorithms/common/power_mean.h"
+
 #include "helper_templates.h"
 
 #include <cmath>
@@ -30,6 +32,7 @@ namespace thts {
                 static_pointer_cast<const ThtsCNode>(parent)),
             num_backups(0),
             avg_return(0.0),
+                power_mean_accumulator(0.0),
             // actions(thts_manager->thts_env->get_valid_actions_itfc(state)),
             policy_prior() 
     {   
@@ -291,7 +294,14 @@ namespace thts {
      */
     void UctDNode::backup_average_return(const double trial_return_after_node) {
         num_backups++;
-        avg_return += (trial_return_after_node - avg_return) / (double) num_backups;
+        UctManager& manager = (UctManager&) *thts_manager;
+        if (std::fabs(manager.power_mean_p - 1.0) < 1e-12) {
+            avg_return += (trial_return_after_node - avg_return) / (double) num_backups;
+            return;
+        }
+
+        power_mean_accumulator += helper::power_mean_transform(trial_return_after_node, manager.power_mean_p);
+        avg_return = helper::power_mean_inverse(power_mean_accumulator / (double) num_backups, manager.power_mean_p);
     }
 
     /**

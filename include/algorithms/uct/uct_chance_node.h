@@ -37,6 +37,7 @@ namespace thts {
         protected:
             int num_backups;
             double avg_return;
+            double power_mean_accumulator;
             // std::shared_ptr<StateDistr> next_state_distr;
 
             /**

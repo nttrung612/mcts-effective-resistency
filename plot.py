@@ -142,7 +142,7 @@ def read_eval_files(filenames,num_trials_scale):
 
     for filename in filenames:
         alg_id = None
-        poss_alg_ids = ["er-fixed-depth-uct","fixed-depth-uct","er-uct","db-dents","db-ments","dents","ments","puct","rents","tents","uct"]
+        poss_alg_ids = ["er-fixed-depth-uct","fixed-depth-uct","er-uct","db-dents","db-ments","dents","er-ments","er-rents","er-tents","ments","puct","rents","tents","uct"]
         for poss_alg_id in poss_alg_ids:
             if poss_alg_id in filename:
                 alg_id = poss_alg_id

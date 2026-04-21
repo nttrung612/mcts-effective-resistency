@@ -73,6 +73,11 @@ namespace thts {
              */
             void backup_soft();
 
+            /**
+             * Backup using a weighted power mean over child values. p=1 reproduces the arithmetic mean backup.
+             */
+            void backup_power_mean();
+
 
 
         /**

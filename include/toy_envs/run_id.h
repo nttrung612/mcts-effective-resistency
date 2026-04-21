@@ -59,6 +59,7 @@ static const std::string FL12_051_HPS = "051_fl12_hps";
 static const std::string FL12_051A_HPS = "051a_fl12_hps";
 static const std::string FL12_052_TEST = "052_fl12_test";
 static const std::string FL12_060_ER_UCT_SMOKE = "060_fl12_er_uct_smoke";
+static const std::string FL12_061_ER_MENTS_SMOKE = "061_fl12_er_ments_smoke";
 static const std::string FL16_050_TEST = "050_fl16_test";
 
 static const std::string S6_091_HPS = "091_s6_hps";
@@ -80,18 +81,23 @@ static const std::string ALG_ID_FIXED_DEPTH_UCT = "fixed-depth-uct";
 static const std::string ALG_ID_ER_FIXED_DEPTH_UCT = "er-fixed-depth-uct";
 static const std::string ALG_ID_PUCT = "puct";
 static const std::string ALG_ID_MENTS = "ments";
+static const std::string ALG_ID_ER_MENTS = "er-ments";
 static const std::string ALG_ID_DENTS = "dents";
 static const std::string ALG_ID_RENTS = "rents";
+static const std::string ALG_ID_ER_RENTS = "er-rents";
 static const std::string ALG_ID_TENTS = "tents";
+static const std::string ALG_ID_ER_TENTS = "er-tents";
 static const std::string ALG_ID_EST = "est";
 static const std::string ALG_ID_DBMENTS = "db-ments";
 
 // param ids
 static const std::string PARAMS_ID_UCT_BIAS = "bias";
 static const std::string PARAMS_ID_UCT_ER_C2 = "er_c2";
+static const std::string PARAMS_ID_UCT_POWER_MEAN_P = "power_mean_p";
 static const std::string PARAMS_ID_MENTS_TEMP = "temp";
 static const std::string PARAMS_ID_MENTS_EPSILON = "epsilon";
 static const std::string PARAMS_ID_MENTS_DEFAULT_Q_VALUE = "default_q_value";
+static const std::string PARAMS_ID_MENTS_POWER_MEAN_P = "power_mean_p";
 static const std::string PARAMS_ID_DENTS_IGNORE_DECAY = "no_dents_decay";
 static const std::string PARAMS_ID_DENTS_TEMP = "dents_temp";
 

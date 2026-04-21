@@ -2,6 +2,10 @@
 
 #include "helper_templates.h"
 
+#include <cmath>
+#include <limits>
+#include <stdexcept>
+
 using namespace std;
 
 namespace thts {
@@ -112,6 +116,49 @@ namespace thts {
     }
 
     /**
+     * Implements a weighted power mean backup for the child values.
+     */
+    void MentsCNode::backup_power_mean() {
+        num_backups++;
+
+        MentsManager& manager = (MentsManager&) *thts_manager;
+        double p = manager.power_mean_p;
+
+        double weighted_sum = 0.0;
+        double total_weight = 0.0;
+        lock_all_children();
+        for (pair<shared_ptr<const Observation>,shared_ptr<ThtsDNode>> pr : children) {
+            MentsDNode& child = (MentsDNode&) *pr.second;
+            if (child.num_backups == 0) continue;
+
+            double child_weight = static_cast<double>(child.num_backups);
+            total_weight += child_weight;
+
+            if (fabs(p - 1.0) < 1e-12) {
+                weighted_sum += child_weight * child.soft_value;
+            } else {
+                if (child.soft_value < 0.0) {
+                    unlock_all_children();
+                    throw runtime_error("Power mean backup requires non-negative child values when p != 1.");
+                }
+                weighted_sum += child_weight * pow(child.soft_value, p);
+            }
+        }
+        unlock_all_children();
+
+        double backup_value = 0.0;
+        if (total_weight > 0.0) {
+            if (fabs(p - 1.0) < 1e-12) {
+                backup_value = weighted_sum / total_weight;
+            } else {
+                backup_value = pow(weighted_sum / total_weight, 1.0 / p);
+            }
+        }
+
+        soft_value = backup_value + local_reward;
+    }
+
+    /**
      * Calls ments soft backup
      */
     void MentsCNode::backup(
@@ -123,7 +170,11 @@ namespace thts {
     {   
         MentsManager& manager = (MentsManager&) *thts_manager;
         if (!manager.use_avg_return) {
-            backup_soft();
+            if (manager.use_power_mean_backup) {
+                backup_power_mean();
+            } else {
+                backup_soft();
+            }
             return;
         }
 

@@ -14,6 +14,8 @@ namespace thts {
         static constexpr double epsilon_default=0.5;
         static constexpr double root_node_epsilon_default=-1.0;
         static constexpr double max_explore_prob_default=1.0;
+        static constexpr double er_c2_default=0.0;
+        static constexpr double power_mean_p_default=1.0;
 
         static constexpr TempDecayFnPtr temp_decay_fn_default=nullptr;
         static constexpr double temp_decay_min_temp_default=1.0e-6;
@@ -39,6 +41,8 @@ namespace thts {
         double epsilon;
         double root_node_epsilon;
         double max_explore_prob;
+        double er_c2;
+        double power_mean_p;
 
         TempDecayFnPtr temp_decay_fn;
         double temp_decay_min_temp;
@@ -53,6 +57,7 @@ namespace thts {
         bool recommend_most_visited;
 
         bool use_avg_return;
+        bool use_power_mean_backup;
 
         bool alias_use_caching;
         int alias_recompute_freq;
@@ -66,6 +71,8 @@ namespace thts {
             epsilon(epsilon_default),
             root_node_epsilon(root_node_epsilon_default),
             max_explore_prob(max_explore_prob_default),
+            er_c2(er_c2_default),
+            power_mean_p(power_mean_p_default),
             temp_decay_fn(temp_decay_fn_default),
             temp_decay_min_temp(temp_decay_min_temp_default),
             temp_decay_visits_scale(temp_decay_visits_scale_default),
@@ -76,6 +83,7 @@ namespace thts {
             recommend_visit_threshold(recommend_visit_threshold_default),
             recommend_most_visited(recommend_most_visited_default),
             use_avg_return(use_avg_return_default),
+            use_power_mean_backup(false),
 
             alias_use_caching(alias_use_caching_default),
             alias_recompute_freq(alias_recompute_freq_default),
@@ -102,6 +110,8 @@ namespace thts {
      *      epsilon:
      *          The epsilon exploration parameters from MENTS. I.e. MENTS will uniformly randomly sample an action with 
      *          probability 'epsilon_exploration / log(num_visits+1)' (assuming its a valid probability!).
+    *      er_c2:
+    *          The effective resistance bonus strength used by the ER-augmented MENTS variants.
      *      root_node_epsilon:
      *          An alternative value to use for 'epsilon' at the root search node. The default value of -1.0 indicates 
      *          that we should use the value of 'epsilon' at the root node too.
@@ -109,6 +119,9 @@ namespace thts {
      *          In MENTS action selection an action is uniformly randomly sampled with probability 
      *          'epsilon_exploration / log(num_visits+1)'. This value provides a maximum probability of uniformly 
      *          exploring. This value must be in the range [0,1].
+    *      power_mean_p:
+    *          Power mean parameter for the chance-node backup used by the ER variants. p=1 reproduces the current
+    *          arithmetic mean backup.
      * 
      * Member variables (temperature decay):
      *      temp_decay_fn: 
@@ -162,6 +175,8 @@ namespace thts {
             double epsilon;
             double root_node_epsilon;
             double max_explore_prob;
+            double er_c2;
+            double power_mean_p;
 
             TempDecayFnPtr temp_decay_fn;
             double temp_decay_min_temp;
@@ -176,6 +191,7 @@ namespace thts {
             bool recommend_most_visited;
 
             bool use_avg_return;
+            bool use_power_mean_backup;
 
             bool alias_use_caching;
             int alias_recompute_freq;
@@ -189,6 +205,8 @@ namespace thts {
                 epsilon(args.epsilon),
                 root_node_epsilon(args.root_node_epsilon),
                 max_explore_prob(args.max_explore_prob),
+                er_c2(args.er_c2),
+                power_mean_p(args.power_mean_p),
                 temp_decay_fn(args.temp_decay_fn),
                 temp_decay_min_temp(args.temp_decay_min_temp),
                 temp_decay_visits_scale(args.temp_decay_visits_scale),
@@ -199,6 +217,7 @@ namespace thts {
                 recommend_visit_threshold(args.recommend_visit_threshold),
                 recommend_most_visited(args.recommend_most_visited),
                 use_avg_return(args.use_avg_return),
+                use_power_mean_backup(args.use_power_mean_backup),
                 alias_use_caching(args.alias_use_caching),
                 alias_recompute_freq(args.alias_recompute_freq),
                 use_max_heap(args.use_max_heap) {};

@@ -9,6 +9,9 @@
 #include "algorithms/uct/er_fixed_depth_uct_decision_node.h"
 #include "algorithms/uct/puct_manager.h"
 #include "algorithms/ments/ments_manager.h"
+#include "algorithms/ments/er_ments_decision_node.h"
+#include "algorithms/ments/er_rents_decision_node.h"
+#include "algorithms/ments/er_tents_decision_node.h"
 #include "algorithms/ments/dents/dents_manager.h"
 
 #include "algorithms/uct/uct_logger.h"
@@ -23,9 +26,12 @@
 #include "algorithms/uct/er_fixed_depth_uct_decision_node.h"
 #include "algorithms/uct/puct_decision_node.h"
 #include "algorithms/ments/ments_decision_node.h"
+#include "algorithms/ments/er_ments_decision_node.h"
 #include "algorithms/ments/dbments_decision_node.h"
 #include "algorithms/ments/dents/dents_decision_node.h"
+#include "algorithms/ments/er_rents_decision_node.h"
 #include "algorithms/ments/rents/rents_decision_node.h"
+#include "algorithms/ments/er_tents_decision_node.h"
 #include "algorithms/ments/tents/tents_decision_node.h"
 #include "algorithms/est/est_decision_node.h"
 
@@ -135,6 +141,9 @@ namespace thts {
             if (alg_params.find(PARAMS_ID_UCT_ER_C2) != alg_params.end()) {
                 manager_args.er_c2 = alg_params.at(PARAMS_ID_UCT_ER_C2);
             }
+            if (alg_params.find(PARAMS_ID_UCT_POWER_MEAN_P) != alg_params.end()) {
+                manager_args.power_mean_p = alg_params.at(PARAMS_ID_UCT_POWER_MEAN_P);
+            }
             return make_shared<UctManager>(manager_args);
         } 
         if (alg_id == ALG_ID_PUCT) {
@@ -145,8 +154,11 @@ namespace thts {
             return make_shared<PuctManager>(manager_args);
         }
         if (alg_id == ALG_ID_MENTS || 
+            alg_id == ALG_ID_ER_MENTS ||
             alg_id == ALG_ID_RENTS || 
-            alg_id == ALG_ID_TENTS) 
+            alg_id == ALG_ID_ER_RENTS ||
+            alg_id == ALG_ID_TENTS ||
+            alg_id == ALG_ID_ER_TENTS) 
         {
             MentsManagerArgs manager_args(env);
             manager_args.max_depth = max_trial_length;
@@ -155,6 +167,16 @@ namespace thts {
             manager_args.epsilon = alg_params.at(PARAMS_ID_MENTS_EPSILON);
             if (alg_params.find(PARAMS_ID_MENTS_DEFAULT_Q_VALUE) != alg_params.end()) {
                 manager_args.default_q_value = alg_params.at(PARAMS_ID_MENTS_DEFAULT_Q_VALUE);
+            }
+            if (alg_params.find(PARAMS_ID_UCT_ER_C2) != alg_params.end()) {
+                manager_args.er_c2 = alg_params.at(PARAMS_ID_UCT_ER_C2);
+            }
+            if (alg_params.find(PARAMS_ID_MENTS_POWER_MEAN_P) != alg_params.end()) {
+                manager_args.power_mean_p = alg_params.at(PARAMS_ID_MENTS_POWER_MEAN_P);
+                manager_args.use_power_mean_backup = true;
+            }
+            if (alg_id == ALG_ID_ER_MENTS || alg_id == ALG_ID_ER_RENTS || alg_id == ALG_ID_ER_TENTS) {
+                manager_args.use_power_mean_backup = true;
             }
             return make_shared<MentsManager>(manager_args);
         }
@@ -222,13 +244,25 @@ namespace thts {
             shared_ptr<MentsManager> ments_manager = static_pointer_cast<MentsManager>(manager);
             return make_shared<MentsDNode>(ments_manager, env->get_initial_state_itfc(), 0, 0);
         }
+        if (alg_id == ALG_ID_ER_MENTS) {
+            shared_ptr<MentsManager> ments_manager = static_pointer_cast<MentsManager>(manager);
+            return make_shared<ERMentsDNode>(ments_manager, env->get_initial_state_itfc(), 0, 0);
+        }
         if (alg_id == ALG_ID_RENTS) {
             shared_ptr<MentsManager> ments_manager = static_pointer_cast<MentsManager>(manager);
             return make_shared<RentsDNode>(ments_manager, env->get_initial_state_itfc(), 0, 0);
         }
+        if (alg_id == ALG_ID_ER_RENTS) {
+            shared_ptr<MentsManager> ments_manager = static_pointer_cast<MentsManager>(manager);
+            return make_shared<ERRentsDNode>(ments_manager, env->get_initial_state_itfc(), 0, 0);
+        }
         if (alg_id == ALG_ID_TENTS) {
             shared_ptr<MentsManager> ments_manager = static_pointer_cast<MentsManager>(manager);
             return make_shared<TentsDNode>(ments_manager, env->get_initial_state_itfc(), 0, 0);
+        }
+        if (alg_id == ALG_ID_ER_TENTS) {
+            shared_ptr<MentsManager> ments_manager = static_pointer_cast<MentsManager>(manager);
+            return make_shared<ERTentsDNode>(ments_manager, env->get_initial_state_itfc(), 0, 0);
         }
         if (alg_id == ALG_ID_DENTS || alg_id == ALG_ID_DBMENTS) {
             shared_ptr<DentsManager> dents_manager = static_pointer_cast<DentsManager>(manager);
@@ -251,7 +285,7 @@ namespace thts {
             logger->set_trials_delta(trials_log_delta);
             return logger;
         } 
-        if (alg_id == ALG_ID_MENTS || alg_id == ALG_ID_DENTS || alg_id == ALG_ID_DBMENTS || alg_id == ALG_ID_RENTS || alg_id == ALG_ID_TENTS) {
+        if (alg_id == ALG_ID_MENTS || alg_id == ALG_ID_ER_MENTS || alg_id == ALG_ID_DENTS || alg_id == ALG_ID_DBMENTS || alg_id == ALG_ID_RENTS || alg_id == ALG_ID_ER_RENTS || alg_id == ALG_ID_TENTS || alg_id == ALG_ID_ER_TENTS) {
             shared_ptr<ThtsLogger> logger = make_shared<MentsLogger>();
             logger->set_trials_delta(trials_log_delta);
             return logger;
@@ -1197,6 +1231,63 @@ namespace thts {
                 if (alg_id == ALG_ID_ER_UCT) {
                     alg_params[PARAMS_ID_UCT_ER_C2] = 1.0;
                 }
+                run_ids->push_back(RunID(
+                    env_id,
+                    env_instance_id,
+                    expr_id,
+                    alg_id,
+                    alg_params,
+                    num_trials,
+                    max_trial_length,
+                    trials_log_delta,
+                    mc_eval_trials_delta,
+                    rollouts_per_mc_eval,
+                    num_repeats,
+                    num_threads,
+                    eval_threads));
+            }
+
+            return run_ids;
+        }
+
+        // expr id: FL12_061_ER_MENTS_SMOKE
+        // Small Frozen Lake smoke test for MENTS-family ER variants
+        if (expr_id == FL12_061_ER_MENTS_SMOKE) {
+            string env_id = FL_ENV_ID;
+            string env_instance_id = FL_8x12_TEST;
+            int num_trials = 5000;
+            int max_trial_length = 100;
+            int trials_log_delta = 100;
+            int mc_eval_trials_delta = 250;
+            int rollouts_per_mc_eval = 50;
+            int num_repeats = 1;
+            int num_threads = 4;
+            int eval_threads = 4;
+
+            vector<string> alg_ids = {ALG_ID_MENTS, ALG_ID_ER_MENTS, ALG_ID_RENTS, ALG_ID_ER_RENTS, ALG_ID_TENTS, ALG_ID_ER_TENTS};
+            for (string alg_id : alg_ids) {
+                double temp = 1.0;
+                double eps = 1.0;
+                if (alg_id == ALG_ID_MENTS || alg_id == ALG_ID_ER_MENTS) {
+                    temp = 0.001;
+                    eps = 1.0;
+                } else if (alg_id == ALG_ID_RENTS || alg_id == ALG_ID_ER_RENTS) {
+                    temp = 0.001;
+                    eps = 2.0;
+                } else if (alg_id == ALG_ID_TENTS || alg_id == ALG_ID_ER_TENTS) {
+                    temp = 0.001;
+                    eps = 1.0;
+                } else {
+                    throw runtime_error("error in FL12_061_ER_MENTS_SMOKE");
+                }
+
+                unordered_map<string,double> alg_params = {
+                    {PARAMS_ID_MENTS_TEMP, temp},
+                    {PARAMS_ID_MENTS_EPSILON, eps},
+                    {PARAMS_ID_MENTS_POWER_MEAN_P, 1.0},
+                    {PARAMS_ID_UCT_ER_C2, 1.0}
+                };
+
                 run_ids->push_back(RunID(
                     env_id,
                     env_instance_id,

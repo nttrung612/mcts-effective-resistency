@@ -211,6 +211,18 @@ namespace thts {
             virtual void backup_soft_with_max_heap(ThtsEnvContext& ctx);
 
             /**
+             * Returns the effective resistance bonus for the supplied action.
+             */
+            virtual double get_er_bonus(std::shared_ptr<const Action> action) const;
+
+            /**
+             * Returns the soft Q-value plus the ER bonus for the supplied action.
+             */
+            virtual double get_er_augmented_soft_q_value(
+                std::shared_ptr<const Action> action,
+                double opponent_coeff) const;
+
+            /**
              * Lazily initialises the alias tables
             */
             void lazy_init_alias_tables(ThtsEnvContext& ctx);

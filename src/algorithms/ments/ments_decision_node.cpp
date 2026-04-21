@@ -554,6 +554,27 @@ namespace thts {
     }
 
     /**
+     * Returns the ER bonus for an action.
+     */
+    double MentsDNode::get_er_bonus(shared_ptr<const Action> action) const {
+        MentsManager& manager = (MentsManager&) *thts_manager;
+        if (manager.er_c2 == 0.0) {
+            return 0.0;
+        }
+
+        int child_visits = has_child_node(action) ? get_child_node(action)->num_visits : 0;
+        double effective_visits = (child_visits > 0) ? static_cast<double>(child_visits) : 1.0;
+        return manager.er_c2 / effective_visits;
+    }
+
+    /**
+     * Returns the soft Q-value plus the ER bonus for an action.
+     */
+    double MentsDNode::get_er_augmented_soft_q_value(shared_ptr<const Action> action, double opponent_coeff) const {
+        return get_soft_q_value(action, opponent_coeff) + get_er_bonus(action);
+    }
+
+    /**
      * Calls the ments implementation of backup, performing soft backup
      * ++ hacky using avg_returns backup impl
      */
