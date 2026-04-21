@@ -74,7 +74,9 @@ static const std::string FL8_059_SENS = "059_fl8_0_001";
 
 // alg ids
 static const std::string ALG_ID_UCT = "uct";
+static const std::string ALG_ID_ER_UCT = "er-uct";
 static const std::string ALG_ID_FIXED_DEPTH_UCT = "fixed-depth-uct";
+static const std::string ALG_ID_ER_FIXED_DEPTH_UCT = "er-fixed-depth-uct";
 static const std::string ALG_ID_PUCT = "puct";
 static const std::string ALG_ID_MENTS = "ments";
 static const std::string ALG_ID_DENTS = "dents";
@@ -85,6 +87,7 @@ static const std::string ALG_ID_DBMENTS = "db-ments";
 
 // param ids
 static const std::string PARAMS_ID_UCT_BIAS = "bias";
+static const std::string PARAMS_ID_UCT_ER_C2 = "er_c2";
 static const std::string PARAMS_ID_MENTS_TEMP = "temp";
 static const std::string PARAMS_ID_MENTS_EPSILON = "epsilon";
 static const std::string PARAMS_ID_MENTS_DEFAULT_Q_VALUE = "default_q_value";

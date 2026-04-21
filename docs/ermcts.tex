@@ -1,0 +1,1266 @@
+\documentclass{article}
+
+% NeurIPS 2025 style
+% For submission use: \usepackage{neurips_2025}
+% For camera-ready use: \usepackage[final]{neurips_2025}
+\usepackage[preprint]{neurips_2025}
+
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{mathtools}
+\usepackage{xcolor}
+\usepackage{thmtools}
+\usepackage{thm-restate}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{url}
+
+% Theorem environments
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{remark}[theorem]{Remark}
+\newtheorem{assumption}[theorem]{Assumption}
+
+% Shorthand
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\Reff}{R_{\mathrm{eff}}}
+\newcommand{\Vhat}{\widehat{V}}
+\newcommand{\Qhat}{\widehat{Q}}
+\newcommand{\Vtilde}{\widetilde{V}}
+\newcommand{\muhat}{\widehat{\mu}}
+\newcommand{\xrmark}[2]{\xrightarrow[#2]{#1}}
+
+\title{Effective Resistance Augmented Monte-Carlo Tree Search:\\
+Convergence Analysis for Power Mean and Convex Regularized Planning}
+
+\author{
+  Tuan Dam \\
+  SOICT\\
+  HUST\\
+  Hanoi, vietnam \\
+  \texttt{tuandq@soict@hust.edu.vn}
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We introduce MCTS-ER, a family of Monte-Carlo Tree Search algorithms augmented with an \emph{effective resistance} (ER) bonus derived from the search tree.
+The ER bonus provides a path-level uncertainty signal: it penalizes trajectories containing weakly-visited edges, complementing local exploration--exploitation mechanisms.
+We study MCTS-ER in two frameworks.
+\textbf{Part~I:} We augment the polynomial exploration bonus of Stochastic-Power-UCT and prove that MCTS-ER retains the same $O(n^{-1/2})$ polynomial convergence rate for root value estimation.
+\textbf{Part~II:} We augment convex-regularized MCTS (MENTS, RENTS, TENTS) with the ER bonus and prove that the exponential convergence rate $O(t\exp(-t/(\log t)^3))$ is preserved.
+For the Tsallis entropy case (TENTS-ER), we show that the ER bonus dynamically modulates the sparsity set of the Tsallis policy, providing adaptive exploration that broadens the active action set in the early phase and contracts to sparse exploitation as visits accumulate.
+We derive regret bounds and error analysis for each regularizer augmented with ER, showing that ER comes ``for free'' in terms of asymptotic rates while providing structurally motivated finite-time improvements.
+\end{abstract}
+
+%% ============================================================
+\section{Introduction}
+%% ============================================================
+
+Monte-Carlo Tree Search (MCTS) is a powerful online planning paradigm that constructs a search tree by combining Monte-Carlo sampling with forward tree expansion \citep{browne2012survey}.
+The Upper Confidence bound for Trees (UCT) algorithm \citep{kocsis2006bandit}, which adapts UCB1 \citep{auer2002finite} to tree search, is the most widely used selection strategy.
+However, the theoretical analysis of UCT suffers from issues related to the logarithmic bonus term \citep{shah2022nonasymptotic}, leading to the development of Fixed-Depth-MCTS with a polynomial bonus \citep{shah2022nonasymptotic} and Stochastic-Power-UCT with power mean estimation \citep{dam2024power}.
+More recently, convex regularization has been introduced to MCTS through maximum entropy (MENTS) \citep{xiao2019maximum}, relative entropy (RENTS), and Tsallis entropy (TENTS) regularizers \citep{dam2021convex}, achieving exponential convergence rates.
+
+A limitation of all these MCTS selection strategies is that the exploration mechanism at each node depends only on \emph{local} visit counts.
+This ignores the global structure of the search tree: a node may have a high local visit count but be reachable only through a weakly-explored edge higher in the tree, making the entire trajectory unreliable.
+
+\paragraph{Effective resistance as a path-level uncertainty measure.}
+In spectral graph theory, the \emph{effective resistance} between two nodes in a graph
+captures how well-connected they are, accounting for all paths between
+them~\citep{doyle1984random,chandra1996electrical}.
+On a tree (where there is exactly one path between any pair of nodes),
+the effective resistance equals the sum of edge resistances along
+that unique path~\citep{ghosh2008minimizing,tetali1991random}:
+for edge resistances $r(e) = 1/N(e)$ (where $N(e)$ is the visit count
+of edge $e$), we obtain
+\[
+\Reff(\mathrm{root}, s) = \sum_{e \in \mathrm{path}(\mathrm{root}, s)} \frac{1}{N(e)}.
+\]
+We propose this quantity as a measure of \emph{trajectory-level uncertainty}:
+a single weakly-visited edge creates a large contribution,
+flagging the entire path as under-explored.
+
+\paragraph{Contributions.}
+We propose MCTS-ER, which adds the effective resistance bonus to two distinct MCTS frameworks.
+Our main contributions are:
+\begin{enumerate}
+    \item \textbf{Part~I (Sections~\ref{sec:prelim}--\ref{sec:theory}):} We augment Stochastic-Power-UCT with an additive ER bonus and prove $O(n^{-1/2})$ polynomial convergence, showing the ER bonus is asymptotically dominated by the polynomial bonus.
+    \item \textbf{Part~II (Sections~\ref{sec:convex_prelim}--\ref{sec:convex_theory}):} We augment convex-regularized MCTS (MENTS, RENTS, TENTS) with an ER bonus injected into the Q-values before computing the regularized policy. We prove that the exponential convergence rate is preserved for all three regularizers.
+    \item For the TENTS-ER case, we show that the ER bonus dynamically controls the sparsity set $\mathcal{K}$ of the Tsallis policy, providing an \emph{adaptive sparsity schedule} that neither component achieves alone.
+    \item We derive ER-augmented regret bounds and error analysis for each regularizer (Section~\ref{sec:convex_regret}).
+\end{enumerate}
+
+%% ============================================================
+%% PART I
+%% ============================================================
+\bigskip
+\begin{center}
+\Large\textsc{Part I: Power Mean MCTS-ER}
+\end{center}
+\bigskip
+
+%% ============================================================
+\section{Preliminaries}
+\label{sec:prelim}
+%% ============================================================
+
+\subsection{Markov Decision Process}
+
+We consider a discrete-time discounted MDP $\mathcal{M} = \langle \mathcal{S}, \mathcal{A}, R, P, \gamma \rangle$ where $\mathcal{S}$ is the state space, $\mathcal{A}$ is the finite action space, $R: \mathcal{S} \times \mathcal{A} \times \mathcal{S} \to \R$ is the reward function, $P: \mathcal{S} \times \mathcal{A} \to \Delta(\mathcal{S})$ is the transition kernel, and $\gamma \in [0,1)$ is the discount factor.
+The optimal Q-value satisfies the Bellman equation:
+\[
+Q^*(s,a) = \sum_{s'} P(s'|s,a)\bigl[R(s,a,s') + \gamma \max_{a'} Q^*(s',a')\bigr].
+\]
+
+\subsection{MCTS and Stochastic-Power-UCT}
+
+We analyze MCTS with a fixed planning depth $H$ and a playout policy $\pi_0$ with value $V_0$.
+For a node $s_h$ at depth $h$, define inductively $\widetilde{V}(s_H) = V_0(s_H)$ and
+\begin{align}
+\widetilde{Q}(s_h, a) &= r(s_h, a) + \gamma \sum_{s_{h+1}} P(s_{h+1}|s_h, a) \widetilde{V}(s_{h+1}), \label{eq:Qtilde}\\
+\widetilde{V}(s_h) &= \max_a \widetilde{Q}(s_h, a). \label{eq:Vtilde}
+\end{align}
+
+After $t$ trajectories, the value and Q-value estimates in Stochastic-Power-UCT are:
+\begin{align}
+\Vhat_t(s_h) &= \left(\sum_{a \in \mathcal{A}_{s_h}} \frac{T_{s_h,a}(t)}{t} \bigl(\Qhat_{T_{s_h,a}(t)}(s_h,a)\bigr)^p \right)^{1/p}, \label{eq:Vhat}\\
+\Qhat_t(s_h, a) &= \frac{1}{t}\sum_{i=1}^{t} \bigl[r^i(s_h,a) + \gamma \Vhat_{T^{s_{h+1}}_{s_h,a}(i)}(s_{h+1})\bigr], \label{eq:Qhat}
+\end{align}
+where $p \in [1, +\infty)$ is the power mean parameter.
+
+\begin{definition}[Polynomial concentration]\label{def:concentration}
+A sequence of estimators $(\Vhat_n)_{n \geq 1}$ \emph{concentrates at rate $(\alpha, \beta)$} towards a limit $V$ if there exists a constant $c > 0$ such that for all $n \geq 1$ and all $\varepsilon > n^{-\alpha/\beta}$:
+\[
+\Prob\bigl(|\Vhat_n - V| > \varepsilon\bigr) \leq c n^{-\alpha} \varepsilon^{-\beta}.
+\]
+We write $\Vhat_n \xrightarrow{\alpha, \beta} V$.
+\end{definition}
+
+\subsection{Effective Resistance on Trees}
+
+\begin{definition}[Tree effective resistance]\label{def:ER}
+For a search tree $\mathcal{T}$ with root $s_0$ and edge visit counts $\{N(e)\}_{e \in \mathcal{T}}$, define the \emph{effective resistance} from the root to a node $s_h$ at depth $h$ as:
+\[
+\Reff(s_0, s_h) = \sum_{e \in \mathrm{path}(s_0, s_h)} \frac{1}{N(e)},
+\]
+where $\mathrm{path}(s_0, s_h)$ is the unique path from $s_0$ to $s_h$ in $\mathcal{T}$, and $N(e)$ is the number of times edge $e$ has been traversed.
+\end{definition}
+
+\begin{remark}[Local decomposition on trees]\label{rmk:local}
+On a tree, when selecting action $a$ at node $s_h$, the effective resistance to the resulting child $s_{h+1}$ decomposes as:
+\[
+\Reff(s_0, s_{h+1}) = \underbrace{\Reff(s_0, s_h)}_{\text{constant across actions}} + \frac{1}{T_{s_h,a}(t)}.
+\]
+Therefore, the ER contribution to action selection at node $s_h$ reduces to the local quantity $1/T_{s_h,a}(t)$.
+This decomposition is the key structural property enabling our analysis.
+\end{remark}
+
+%% ============================================================
+\section{MCTS-ER Algorithm}
+\label{sec:algorithm}
+%% ============================================================
+
+MCTS-ER modifies the action selection of Stochastic-Power-UCT by adding an ER bonus term.
+At depth $h$, the selected action is:
+\begin{equation}\label{eq:selection}
+a_h = \arg\max_{a \in \mathcal{A}_{s_h}} \left\{ \Qhat_{T_{s_h,a}(t)}(s_h, a) + B^{\mathrm{poly}}_h(t, s_h, a) + B^{\mathrm{ER}}_h(t, s_h, a) \right\},
+\end{equation}
+where the polynomial bonus is
+\begin{equation}\label{eq:poly_bonus}
+B^{\mathrm{poly}}_h(t, s_h, a) = C_1 \frac{T_{s_h}(t)^{b_{h+1}/\beta_{h+1}}}{T_{s_h,a}(t)^{\alpha_{h+1}/\beta_{h+1}}},
+\end{equation}
+with algorithmic constants $\{b_i\}_{i=0}^H$, $\{\alpha_i\}_{i=0}^H$, $\{\beta_i\}_{i=0}^H$ satisfying the conditions of Stochastic-Power-UCT (Table~\ref{tab:conditions}), and the ER bonus is
+\begin{equation}\label{eq:er_bonus}
+B^{\mathrm{ER}}_h(t, s_h, a) = \frac{C_2}{T_{s_h,a}(t)},
+\end{equation}
+where $C_2 > 0$ is a constant controlling the strength of the ER contribution.
+
+By Remark~\ref{rmk:local}, $B^{\mathrm{ER}}_h$ is precisely the incremental effective resistance contributed by the edge $(s_h, a)$.
+The combined bonus is therefore:
+\begin{equation}\label{eq:combined_bonus}
+B_h(t, s_h, a) = C_1 \frac{T_{s_h}(t)^{b_{h+1}/\beta_{h+1}}}{T_{s_h,a}(t)^{\alpha_{h+1}/\beta_{h+1}}} + \frac{C_2}{T_{s_h,a}(t)}.
+\end{equation}
+
+The value backup uses the same power mean operator as in Stochastic-Power-UCT (Eq.~\eqref{eq:Vhat}).
+
+\begin{table}[t]
+\centering
+\caption{Conditions for algorithmic constants. $i \in [0, H]$.}
+\label{tab:conditions}
+\begin{tabular}{l}
+\toprule
+Algorithmic constants (all conditions must hold simultaneously) \\
+\midrule
+$b_i < \alpha_i$; \quad $b_i > 2$. \\
+$1 \leq p \leq 2$; $\alpha_i \leq \frac{\beta_i}{2}$ \quad OR \quad $p > 2$; $\alpha_i \leq \frac{\beta_i}{2}$; $0 < \alpha_i - \frac{\beta_i}{p} < 1$. \\
+$\alpha_i\bigl(1 - \frac{b_i}{\alpha_i}\bigr) \leq b_i < \alpha_i$. \\
+$\alpha_i = (b_{i+1} - 1)\bigl(1 - \frac{b_{i+1}}{\alpha_{i+1}}\bigr)$. \\
+$\beta_i = (b_{i+1} - 1)$. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{algorithm}[t]
+\caption{MCTS-ER: Effective Resistance Augmented Stochastic-Power-UCT}
+\label{alg:mcts-er}
+\begin{algorithmic}[1]
+\REQUIRE Root state $s_0$, depth $H$, constants $C_1, C_2$, power mean $p$, playout policy $\pi_0$
+\STATE Initialize tree $\mathcal{T}$ with root $s_0$
+\FOR{$t = 1, 2, \ldots, n$}
+    \STATE \textbf{Selection:} Starting from $s_0$, at each depth $h$:
+    \[
+    a_h = \arg\max_{a} \left\{ \Qhat_{T_{s_h,a}}(s_h, a) + C_1 \frac{T_{s_h}^{b_{h+1}/\beta_{h+1}}}{T_{s_h,a}^{\alpha_{h+1}/\beta_{h+1}}} + \frac{C_2}{T_{s_h,a}} \right\}
+    \]
+    \STATE \textbf{Expansion:} If $s_{\ell_t}$ is a leaf with $\ell_t < H$, add children.
+    \STATE \textbf{Evaluation:} $\Vhat(s_{\ell_t}) = \pi_0(s_{\ell_t})$ (playout).
+    \STATE \textbf{Backup:} Update $\Qhat$ via Eq.~\eqref{eq:Qhat} and $\Vhat$ via Eq.~\eqref{eq:Vhat} along trajectory.
+\ENDFOR
+\RETURN $\hat{a} = \arg\max_a \Qhat_{T_{s_0,a}(n)}(s_0, a)$
+\end{algorithmic}
+\end{algorithm}
+
+%% ============================================================
+\section{Theoretical Analysis}
+\label{sec:theory}
+%% ============================================================
+
+Planning in MCTS requires a sequence of decisions along the tree, with each internal node acting as a non-stationary bandit. The empirical mean at these nodes shifts due to the action selection strategy. Following \citet{dam2024power}, we first analyze non-stationary multi-armed bandit settings with the combined ER bonus, focusing on the concentration properties of the power-mean backup for each arm compared to the optimal value. We then apply these findings to MCTS.
+
+\subsection{Non-Stationary Power Mean Multi-Armed Bandit with ER Bonus}
+
+We consider a class of non-stationary multi-armed bandit (MAB) problems. Let $K \geq 1$ arms and let $X_{a,t}$ denote the random reward obtained by playing arm $a \in [K]$ at time step $t$, with rewards bounded in $[0, R]$. We write $\muhat_{a,n} = \frac{1}{n}\sum_{t=1}^n X_{a,t}$ for the average reward collected at arm $a$ after $n$ plays, and $\mu_{a,n} = \E[\muhat_{a,n}]$. We assume the arms satisfy Assumption~1 (polynomial concentration as in Definition~\ref{def:concentration}).
+
+Let $\mu^* = \max_{a \in [K]}\{\mu_a\}$ be the optimal mean value (assumed unique) and $\Delta_a = \mu^* - \mu_a$ the sub-optimality gap. The MCTS-ER action selection strategy at each time step $n > K$ is:
+\begin{equation}\label{eq:bandit_ER}
+a_n = \arg\max_{a \in \{1,\ldots,K\}} \left\{\muhat_{a,T_a(n)} + C_1\frac{n^{b/\beta}}{T_a(n)^{\alpha/\beta}} + \frac{C_2}{T_a(n)}\right\},
+\end{equation}
+where $T_a(n) = \sum_{t=1}^{n-1}\mathbf{1}(a_t = a)$ denotes the number of selections of arm $a$ prior to round $n$. The combined upper confidence index is
+\begin{equation}\label{eq:combined_ucb}
+U^{\mathrm{ER}}_{a,n,s} \coloneqq \muhat_{a,s} + C_1\frac{n^{b/\beta}}{s^{\alpha/\beta}} + \frac{C_2}{s}.
+\end{equation}
+Given a constant $1 \leq p < \infty$, the power mean backup operator is defined as
+\[
+\muhat_n(p) = \left(\sum_{a=1}^K \frac{T_a(n)}{n}\muhat^p_{a,T_a(n)}\right)^{1/p}.
+\]
+
+\subsection{Dominance of the Polynomial Bonus}
+
+\begin{lemma}[ER bonus is asymptotically dominated]\label{lem:dominance}
+Let $\alpha/\beta \leq 1/2$ and $b/\alpha < 1$ (conditions from Table~\ref{tab:conditions}).
+For the combined bonus with parent visit count $n$ and child visit count $s$:
+\[
+B(n, s) = C_1 \frac{n^{b/\beta}}{s^{\alpha/\beta}} + \frac{C_2}{s}.
+\]
+Then for all $s \geq 1$:
+\[
+\frac{C_2}{s} \leq C_1 \frac{n^{b/\beta}}{s^{\alpha/\beta}} \quad \text{whenever } s \leq \left(\frac{C_1}{C_2}\right)^{\beta/(\alpha - \beta)} n^{b/(\alpha - \beta)}.
+\]
+Moreover, since $\alpha/\beta \leq 1/2 < 1$, we have $1/s = o(1/s^{\alpha/\beta})$ as $s \to \infty$, so the ER bonus decays strictly faster than the polynomial bonus.
+\end{lemma}
+
+\begin{proof}
+The inequality $C_2/s \leq C_1 n^{b/\beta} / s^{\alpha/\beta}$ is equivalent to $C_2 s^{\alpha/\beta - 1} \leq C_1 n^{b/\beta}$.
+Since $\alpha/\beta \leq 1/2 < 1$, we have $\alpha/\beta - 1 < 0$, so $s^{\alpha/\beta - 1}$ is decreasing in $s$.
+For any $s \geq 1$, we get $s^{\alpha/\beta - 1} \leq 1 \leq C_1 n^{b/\beta} / C_2$ for sufficiently large $n$.
+
+For the asymptotic claim, note that $s^{-1} / s^{-\alpha/\beta} = s^{\alpha/\beta - 1} \to 0$ as $s \to \infty$ since $\alpha/\beta < 1$.
+\end{proof}
+
+\subsection{Modified Concentration Lemmas}
+
+We now introduce the ER-modified threshold and establish the concentration properties that parallel Lemmas~4--6 of \citet{dam2024power}.
+
+\begin{definition}[ER-modified threshold]\label{def:AER}
+For each sub-optimal arm $a$, define
+\begin{equation}\label{eq:modified_threshold}
+A_a^{\mathrm{ER}}(n) \coloneqq \inf\left\{s \leq n : C_1\frac{n^{b/\beta}}{s^{\alpha/\beta}} + \frac{C_2}{s} \leq \frac{\Delta_a}{2}\right\}.
+\end{equation}
+\end{definition}
+
+\begin{proposition}[Threshold comparison]\label{prop:threshold}
+The modified threshold satisfies
+\begin{equation}\label{eq:threshold_bound}
+A_a^{\mathrm{ER}}(n) \leq A_a(n) + D_a, \qquad \text{where } D_a = \frac{4C_2}{\Delta_a},
+\end{equation}
+and $A_a(n) = \bigl(\frac{2C_1}{\Delta_a}\bigr)^{\beta/\alpha} n^{b/\alpha}$ is the original threshold of \citet{dam2024power}. In particular, $A_a^{\mathrm{ER}}(n) = A_a(n)(1 + o(1))$ as $n \to \infty$.
+\end{proposition}
+
+\begin{proof}
+At $s = A_a(n)$, the polynomial bonus satisfies $C_1 n^{b/\beta} s^{-\alpha/\beta} = \Delta_a/2$. The ER bonus contributes at most $C_2/A_a(n)$. We need $C_1 n^{b/\beta}/s^{\alpha/\beta} + C_2/s \leq \Delta_a/2$. Taking a first-order Taylor expansion of the polynomial bonus around $A_a(n)$, the derivative with respect to $s$ is $-\frac{\alpha}{\beta}C_1 n^{b/\beta} s^{-\alpha/\beta - 1}$. The shift required to absorb the ER residual $C_2/A_a(n)$ is:
+\[
+D_a \leq \frac{C_2/A_a(n)}{\frac{\alpha}{\beta} C_1 n^{b/\beta} A_a(n)^{-\alpha/\beta - 1}} = \frac{C_2 \beta}{\alpha \cdot \Delta_a / 2} = \frac{2C_2\beta}{\alpha\Delta_a} \leq \frac{4C_2}{\Delta_a},
+\]
+using $\beta/\alpha \leq 2$ (from the condition $\alpha \leq \beta/2$). Since $D_a$ is independent of $n$ and $A_a(n) = \Theta(n^{b/\alpha}) \to \infty$, we get $A_a^{\mathrm{ER}}(n)/A_a(n) \to 1$.
+\end{proof}
+
+Throughout we write $A^{\mathrm{ER}}(n) \coloneqq \bigl(\frac{2C_1}{\Delta}\bigr)^{\beta/\alpha}n^{b/\alpha} + D$ where $\Delta = \min_{a:\mu_a < \mu^*}\Delta_a$ and $D = \frac{4C_2}{\Delta}$.
+
+\begin{lemma}[Modified Lemma~4 --- Concentration at optimal arm]\label{lem:modified_lemma4}
+Consider the bandit problem with MCTS-ER selection~\eqref{eq:bandit_ER}. With $R \geq \varepsilon \geq n^{-\alpha/\beta}$:
+\begin{equation}\label{eq:lemma4_ER}
+\Prob\bigl(|\muhat_{a^*,T_{a^*}(n)} - \mu^*| > \varepsilon\bigr) \leq \sum_{a \neq a^*} \Prob\bigl(T_a(n) > A^{\mathrm{ER}}_a(n) + 1\bigr) + \frac{c}{\alpha - 1}\varepsilon^{-\beta}\bigl(n - (K-1)A^{\mathrm{ER}}(n) - 1\bigr)^{-\alpha + 1}.
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+Define the event $E \coloneqq \bigl\{\sum_{a \neq a^*} T_a(n) > (K-1)(A^{\mathrm{ER}}_a(n) + 1)\bigr\}$. Then
+\begin{align*}
+\Prob\bigl(|\muhat_{a^*,T_{a^*}(n)} - \mu^*| > \varepsilon\bigr) &\leq \Prob(E) + \Prob\bigl(E^c;\; |\muhat_{a^*,T_{a^*}(n)} - \mu^*| > \varepsilon\bigr).
+\end{align*}
+When $E^c$ holds, $T_{a^*}(n) = n - \sum_{a \neq a^*}T_a(n) \geq n - (K-1)(A^{\mathrm{ER}}(n) + 1)$. By a union bound over $a \neq a^*$, $\Prob(E) \leq \sum_{a \neq a^*}\Prob(T_a(n) > A^{\mathrm{ER}}_a(n) + 1)$. For the second term, using Assumption~1:
+\begin{align*}
+\Prob\bigl(E^c;\; |\muhat_{a^*,T_{a^*}(n)} - \mu^*| > \varepsilon\bigr) &\leq \sum_{t = n - (K-1)(A^{\mathrm{ER}}(n)+1)}^{n} \Prob(|\muhat_{a^*,t} - \mu^*| \geq \varepsilon) \\
+&\leq \sum_{t = n-(K-1)(A^{\mathrm{ER}}(n)+1)}^{n} ct^{-\alpha}\varepsilon^{-\beta} \\
+&\leq c\varepsilon^{-\beta}\int_{n-(K-1)(A^{\mathrm{ER}}(n)+1)-1}^{\infty} t^{-\alpha}dt \\
+&= \frac{c}{\alpha - 1}\varepsilon^{-\beta}\bigl(n - (K-1)(A^{\mathrm{ER}}(n)+1) - 1\bigr)^{-\alpha+1},
+\end{align*}
+where we used $\alpha > 2$ (from the conditions in Table~\ref{tab:conditions}).
+\end{proof}
+
+\begin{lemma}[Modified Lemma~5 --- Concentration of combined UCB]\label{lem:modified_lemma5}
+Under Assumption~1, for the combined index~\eqref{eq:combined_ucb}:
+\begin{enumerate}
+    \item[(i)] For all $s \in \{1, \ldots, n\}$: $\Prob(U^{\mathrm{ER}}_{a,n,s} < \mu_a) \leq c C_1^{-\beta} n^{-b}$.
+    \item[(ii)] For all $s \in \{A_a^{\mathrm{ER}}(n), \ldots, n\}$: $\Prob(U^{\mathrm{ER}}_{a,n,s} > \mu^*) \leq c C_1^{-\beta} n^{-b}$.
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}
+\emph{Part (i).}
+Since the ER bonus $C_2/s \geq 0$, we have $U^{\mathrm{ER}}_{a,n,s} \geq U_{a,n,s} = \muhat_{a,s} + C_1 n^{b/\beta}s^{-\alpha/\beta}$. Therefore:
+\[
+\Prob(U^{\mathrm{ER}}_{a,n,s} < \mu_a) \leq \Prob(U_{a,n,s} < \mu_a) = \Prob\left(\muhat_{a,s} - \mu_a < -C_1\frac{n^{b/\beta}}{s^{\alpha/\beta}}\right) \leq cC_1^{-\beta}n^{-b},
+\]
+where the last step uses Assumption~1.
+
+\emph{Part (ii).}
+For $s \geq A_a^{\mathrm{ER}}(n)$, by definition $C_1 n^{b/\beta} s^{-\alpha/\beta} + C_2 s^{-1} \leq \Delta_a/2$. We compute:
+\begin{align*}
+\Prob(U^{\mathrm{ER}}_{a,n,s} > \mu^*) &= \Prob\left(\muhat_{a,s} + C_1\frac{n^{b/\beta}}{s^{\alpha/\beta}} + \frac{C_2}{s} > \mu^*\right) \\
+&= \Prob\left(\muhat_{a,s} - \mu_a > \Delta_a - C_1\frac{n^{b/\beta}}{s^{\alpha/\beta}} - \frac{C_2}{s}\right) \\
+&\leq \Prob\left(\muhat_{a,s} - \mu_a > \frac{\Delta_a}{2}\right).
+\end{align*}
+Because $s \geq A^{\mathrm{ER}}_a(n)$, we also have $C_1 n^{b/\beta}s^{-\alpha/\beta} \leq C_1 n^{b/\beta} s^{-\alpha/\beta} + C_2/s \leq \Delta_a/2$, so:
+\[
+\Prob\left(\muhat_{a,s} - \mu_a > \frac{\Delta_a}{2}\right) \leq \Prob\left(\muhat_{a,s} - \mu_a > C_1\frac{n^{b/\beta}}{s^{\alpha/\beta}}\right) \leq cC_1^{-\beta}n^{-b}. \qedhere
+\]
+\end{proof}
+
+\begin{lemma}[Modified Lemma~6 --- Sub-optimal arm count]\label{lem:modified_lemma6}
+Assume $b > 1$. For all $u \geq A_a^{\mathrm{ER}}(n)$:
+\[
+\Prob(T_a(n) \geq u) \leq \frac{2c C_1^{-\beta}}{b-1} (u - 1)^{-(b-1)}.
+\]
+\end{lemma}
+
+\begin{proof}
+For any $\tau \in \R$, define the events:
+\[
+E_1 = \{\forall t \in [u, n]:\ U^{\mathrm{ER}}_{a,t,u} \leq \tau\}, \qquad E_2 = \{\forall t' \in [1, n-u]:\ U^{\mathrm{ER}}_{a^*,u+t',t'} > \tau\}.
+\]
+We claim $E_1 \cap E_2 \Rightarrow T_a(n) \leq u$. Suppose for contradiction that $T_a(n) > u$. Let $t'$ denote the time at which arm $a$ is played for the $(u+1)$-th time. At any time $t$ with $u + t' \leq t \leq n$, arm $a$ has been played exactly $u$ times and the optimal arm has been played $t'$ times, with $t' \leq n - u$. Under $E_1 \cap E_2$:
+\[
+U^{\mathrm{ER}}_{a^*,t,t'} \geq U^{\mathrm{ER}}_{a^*,u+t',t'} > \tau \geq U^{\mathrm{ER}}_{a,t,u},
+\]
+where the first inequality uses that $U^{\mathrm{ER}}_{a^*,t,t'}$ is non-decreasing in the first argument (since $n^{b/\beta}$ is increasing in $n$). This means arm $a$ would not be selected after $u$ plays, contradicting $T_a(n) > u$.
+
+Therefore $\{T_a(n) \geq u\} \subseteq E_1^c \cup E_2^c$, giving:
+\[
+\Prob(T_a(n) \geq u) \leq \sum_{t=u}^{n}\Prob(U^{\mathrm{ER}}_{a,t,u} > \mu^*) + \sum_{t'=1}^{n-u}\Prob(U^{\mathrm{ER}}_{a^*,u+t',t'} \leq \mu^*),
+\]
+where we set $\tau = \mu^*$. Since $u \geq A^{\mathrm{ER}}_a(n)$, Lemma~\ref{lem:modified_lemma5}(ii) yields:
+\[
+\sum_{t=u}^{n}\Prob(U^{\mathrm{ER}}_{a,t,u} > \mu^*) \leq cC_1^{-\beta}\sum_{t=u}^{n} t^{-b} \leq cC_1^{-\beta}\int_{u-1}^{\infty}t^{-b}dt = \frac{cC_1^{-\beta}}{b-1}(u-1)^{-(b-1)}.
+\]
+Similarly, by Lemma~\ref{lem:modified_lemma5}(i):
+\[
+\sum_{t'=1}^{n-u}\Prob(U^{\mathrm{ER}}_{a^*,u+t',t'} \leq \mu^*) \leq cC_1^{-\beta}\sum_{t'=1}^{n-u}(u+t')^{-b} \leq \frac{cC_1^{-\beta}}{b-1}(u-1)^{-(b-1)}.
+\]
+Combining the two bounds yields $\Prob(T_a(n) \geq u) \leq \frac{2cC_1^{-\beta}}{b-1}(u-1)^{-(b-1)}$.
+\end{proof}
+
+\subsection{Power Mean Error Decomposition with ER Bonus}
+
+\begin{lemma}[Power mean error bound --- Lemma~7 of \citet{dam2024power}]\label{lem:power_mean_error}
+For any $p \geq 1$:
+\begin{equation}\label{eq:power_error}
+|\muhat_n(p) - \mu^*| \leq R\sum_{a \neq a^*}\frac{T_a(n)}{n} + \left(\sum_{a=1}^K \frac{T_a(n)}{n}|\muhat_{a,T_a(n)} - \mu_a|^p\right)^{1/p}.
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+We provide the full proof as it is the structural starting point for the ER analysis.
+
+\emph{Upper bound.} Since $\muhat_{a,T_a(n)} \leq \mu_a + |\muhat_{a,T_a(n)} - \mu_a|$ and $\mu^* = \max_a\mu_a$, applying Minkowski's inequality (Lemma~3 of \citet{dam2024power}):
+\begin{align*}
+\muhat_n(p) - \mu^* &\leq \frac{\bigl(\sum_a T_a(n)|\muhat_{a,T_a(n)}|^p\bigr)^{1/p} - \bigl(\sum_a T_a(n)(\mu_a)^p\bigr)^{1/p}}{n^{1/p}} \\
+&\leq \frac{\bigl(\sum_a T_a(n)|\mu_a + |\muhat_{a,T_a(n)} - \mu_a||^p\bigr)^{1/p} - \bigl(\sum_a T_a(n)(\mu_a)^p\bigr)^{1/p}}{n^{1/p}} \\
+&\leq \left(\sum_{a=1}^K\frac{T_a(n)}{n}|\muhat_{a,T_a(n)} - \mu_a|^p\right)^{1/p}.
+\end{align*}
+
+\emph{Lower bound.} Since $\mu_a \leq \muhat_{a,T_a(n)} + |\muhat_{a,T_a(n)} - \mu_a|$ and the power mean is increasing in $p$:
+\begin{align*}
+\mu^* - \muhat_n(p) &= \frac{n\mu^* - n\muhat_n(p)}{n} = \frac{\sum_{a \neq a^*}T_a(n)(\mu^* - \mu_a) + \sum_a T_a(n)\mu_a - n\muhat_n(p)}{n} \\
+&\leq R\sum_{a \neq a^*}\frac{T_a(n)}{n} + \left(\sum_{a=1}^K\frac{T_a(n)}{n}(\mu_a)^p\right)^{1/p} - \muhat_n(p).
+\end{align*}
+The second difference is bounded by Minkowski's inequality applied in the reverse direction, yielding the same $(\sum_a \frac{T_a}{n}|\muhat_a - \mu_a|^p)^{1/p}$ term. Combining gives~\eqref{eq:power_error}.
+\end{proof}
+
+\subsection{Modified Concentration of Optimal and Sub-optimal Arms}
+
+\begin{lemma}[Modified Lemma~8 --- Optimal arm concentration]\label{lem:modified_lemma8}
+With $R \geq \varepsilon \geq n^{-\alpha/\beta}$:
+\begin{equation}
+\Prob\left(\frac{T_{a^*}(n)}{n}|\muhat_{a^*,T_{a^*}(n)} - \mu^*|^p > \varepsilon^p\right) \leq \frac{2cC_1^{-\beta}(K-1)}{b-1}A^{\mathrm{ER}}(n)^{-(b-1)} + \frac{c}{\alpha-1}\varepsilon^{-\beta}\bigl(n-(K-1)(A^{\mathrm{ER}}(n)+1)-1\bigr)^{-\alpha+1}.
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+Since $T_{a^*}(n)/n \leq 1$, we have
+\[
+\Prob\left(\frac{T_{a^*}(n)}{n}|\muhat_{a^*,T_{a^*}(n)}-\mu^*|^p > \varepsilon^p\right) \leq \Prob\bigl(|\muhat_{a^*,T_{a^*}(n)}-\mu^*| > \varepsilon\bigr).
+\]
+Applying Lemma~\ref{lem:modified_lemma4}:
+\begin{align*}
+&\Prob\bigl(|\muhat_{a^*,T_{a^*}(n)}-\mu^*| > \varepsilon\bigr) \\
+&\qquad \leq \sum_{a \neq a^*}\Prob\bigl(T_a(n) > A^{\mathrm{ER}}_a(n)+1\bigr) + \frac{c}{\alpha-1}\varepsilon^{-\beta}\bigl(n-(K-1)(A^{\mathrm{ER}}(n)+1)-1\bigr)^{-\alpha+1}.
+\end{align*}
+By Lemma~\ref{lem:modified_lemma6} with $u = A^{\mathrm{ER}}_a(n) + 1$:
+\[
+\sum_{a \neq a^*}\Prob(T_a(n) > A^{\mathrm{ER}}_a(n)+1) \leq \sum_{a \neq a^*}\frac{2cC_1^{-\beta}}{b-1}A^{\mathrm{ER}}_a(n)^{-(b-1)} \leq \frac{2cC_1^{-\beta}(K-1)}{b-1}A^{\mathrm{ER}}(n)^{-(b-1)}. \qedhere
+\]
+\end{proof}
+
+\begin{lemma}[Modified Lemma~9 --- Sub-optimal arm concentration]\label{lem:modified_lemma9}
+For a sub-optimal arm $a$, with $R \geq \varepsilon \geq n^{-\alpha/\beta}$, there exists $N_0$ such that $\forall n \geq N_0$:
+\begin{enumerate}
+\item[\emph{(i)}] If $1 \leq p \leq 2$ and $\alpha \leq \beta/p$:
+\[
+\Prob\left(\frac{T_a(n)}{n}|\muhat_{a,T_a(n)}-\mu_a|^p > \frac{\varepsilon^p}{K-1}\right) \leq \frac{2cC_1^{-\beta}}{(b-1)}A^{\mathrm{ER}}(n)^{-(b-1)} + \frac{2c(K-1)^{\beta/p}}{-(\alpha-\beta/p)+1}\varepsilon^{-\beta}(A^{\mathrm{ER}}_a(n)+1)^{-(\alpha-1)}.
+\]
+\item[\emph{(ii)}] If $p > 2$ and $0 < \alpha - \beta/p < 1$:
+\[
+\Prob\left(\frac{T_a(n)}{n}|\muhat_{a,T_a(n)}-\mu_a|^p > \frac{\varepsilon^p}{K-1}\right) \leq \frac{2cC_1^{-\beta}}{(b-1)}A^{\mathrm{ER}}(n)^{-(b-1)} + \frac{c(K-1)^{\beta/p}}{1-(\alpha-\beta/p)}\varepsilon^{-\beta}(A^{\mathrm{ER}}(n)+1)^{-(\alpha-1)}.
+\]
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}
+We split on the event $\{T_a(n) > A^{\mathrm{ER}}_a(n) + 1\}$:
+\begin{align*}
+&\Prob\left(\frac{T_a(n)}{n}|\muhat_{a,T_a(n)}-\mu_a|^p > \frac{\varepsilon^p}{K-1}\right) \\
+&\quad \leq \Prob(T_a(n) > A^{\mathrm{ER}}_a(n)+1) + \sum_{t=1}^{A^{\mathrm{ER}}_a(n)+1}\Prob\left(\frac{t}{n}|\muhat_{a,t}-\mu_a|^p > \frac{\varepsilon^p}{K-1}\right).
+\end{align*}
+The first term is bounded by $\frac{2cC_1^{-\beta}}{(b-1)}A^{\mathrm{ER}}(n)^{-(b-1)}$ via Lemma~\ref{lem:modified_lemma6}. For the second term (call it $G_2$), we can find $N_0$ such that for $t \leq A^{\mathrm{ER}}(n)+1$ and $n \geq N_0$, the condition $\bigl(\frac{n}{t(K-1)}\bigr)^{1/p}\varepsilon > n^{-\alpha/\beta}$ holds. Therefore:
+\[
+G_2 \leq \sum_{t=1}^{A^{\mathrm{ER}}_a(n)+1} ct^{-\alpha}\left(\frac{n}{t(K-1)}\right)^{-\beta/p}\varepsilon^{-\beta} = c(K-1)^{\beta/p}\varepsilon^{-\beta}n^{-\beta/p}\sum_{t=1}^{A^{\mathrm{ER}}_a(n)+1}t^{-(\alpha-\beta/p)}.
+\]
+\emph{Case~(i):} When $\alpha - \beta/p \leq 0$ (which holds for $1 \leq p \leq 2$ since $\alpha \leq \beta/2$), the sum is bounded by integrating $t^{-(\alpha-\beta/p)}$ which is increasing. The dominant term is $(A^{\mathrm{ER}}_a(n)+1)^{-(\alpha-\beta/p)+1}/(-(\alpha-\beta/p)+1)$. Since $-(\alpha-\beta/p)+1 \geq 1$, for $n \geq N_0$:
+\[
+G_2 \leq \frac{2c(K-1)^{\beta/p}}{-(\alpha-\beta/p)+1}\varepsilon^{-\beta}(A^{\mathrm{ER}}_a(n)+1)^{-(\alpha-1)}.
+\]
+\emph{Case~(ii):} When $0 < \alpha - \beta/p < 1$, we similarly bound the sum using an integral, obtaining:
+\[
+G_2 \leq \frac{c(K-1)^{\beta/p}}{1-(\alpha-\beta/p)}\varepsilon^{-\beta}(A^{\mathrm{ER}}(n)+1)^{-(\alpha-1)}.
+\]
+Note that $A^{\mathrm{ER}}(n)$ appears with the same exponent $-(\alpha-1)$ as in the original analysis; the additive shift $D$ does not alter the polynomial rate.
+\end{proof}
+
+\subsection{Main Bandit Result: Power Mean Concentration with ER}
+
+\begin{lemma}[Modified Lemma~10 --- Power mean concentration with ER]\label{lem:modified_lemma10}
+Define $\varepsilon_0 = \frac{2^{1/p}n\varepsilon}{x} + \frac{nR(K-1)}{x}\bigl(\frac{2^{1/p}(3+A^{\mathrm{ER}}(n))x}{n}\bigr)$ with $R \geq \varepsilon \geq n^{-\alpha/\beta}$. There exists $N_{\mathrm{ER}} \geq 1$ such that for all $n \geq N_{\mathrm{ER}}$ and $x \geq 1$:
+\begin{equation}\label{eq:lemma10_ER}
+\Prob\left(|\muhat_n(p)-\mu^*| \geq \frac{\varepsilon_0 x}{n}\right) \leq \frac{8cC_1^{-\beta}KR^{\beta}\varepsilon^{-\beta}A^{\mathrm{ER}}(n)^{-(b-1)}}{b-1} + \frac{2cC_1^{-\beta}(K-1)(2^{1/p}(3+A^{\mathrm{ER}}(n))x-1)^{-(b-1)}}{b-1}.
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+By Lemma~\ref{lem:power_mean_error}, $|\muhat_n(p)-\mu^*| \leq R\sum_{a \neq a^*}\frac{T_a(n)}{n} + \bigl(\sum_a \frac{T_a(n)}{n}|\muhat_{a,T_a(n)}-\mu_a|^p\bigr)^{1/p}$.
+
+Since $\frac{\varepsilon_0 x}{n} = 2^{1/p}\varepsilon + R(K-1)\bigl(\frac{2^{1/p}(3+A^{\mathrm{ER}}(n))x}{n}\bigr)$, we decompose:
+\begin{align*}
+\Prob\left(|\muhat_n(p)-\mu^*| > \frac{\varepsilon_0 x}{n}\right) &\leq \underbrace{\Prob\left(R\sum_{a \neq a^*}\frac{T_a(n)}{n} > R(K-1)\cdot\frac{2^{1/p}(3+A^{\mathrm{ER}}(n))x}{n}\right)}_{H_1} \\
+&\quad + \underbrace{\Prob\left(\left(\sum_a\frac{T_a(n)}{n}|\muhat_{a,T_a(n)}-\mu_a|^p\right)^{1/p} \geq 2^{1/p}\varepsilon\right)}_{H_2}.
+\end{align*}
+
+\emph{Bounding $H_1$.} For $x \geq 1$:
+\begin{align*}
+H_1 &\leq \sum_{a \neq a^*}\Prob\left(T_a(n) > 2^{1/p}(3+A^{\mathrm{ER}}(n))x\right) \\
+&\leq \frac{2cC_1^{-\beta}(K-1)}{b-1}(2^{1/p}(3+A^{\mathrm{ER}}(n))x - 1)^{-(b-1)},
+\end{align*}
+where we applied Lemma~\ref{lem:modified_lemma6} noting that $2^{1/p}(3+A^{\mathrm{ER}}(n))x \geq A^{\mathrm{ER}}_a(n)$ for large $n$.
+
+\emph{Bounding $H_2$.} We split into optimal and sub-optimal arms:
+\begin{align*}
+H_2 &\leq \Prob\left(\frac{T_{a^*}(n)}{n}|\muhat_{a^*,T_{a^*}(n)}-\mu^*|^p > \varepsilon^p\right) + \sum_{a \neq a^*}\Prob\left(\frac{T_a(n)}{n}|\muhat_{a,T_a(n)}-\mu_a|^p > \frac{\varepsilon^p}{K-1}\right).
+\end{align*}
+By Lemma~\ref{lem:modified_lemma8} and Lemma~\ref{lem:modified_lemma9}, since $b-1 < \alpha-1$ and $n^{-\alpha/\beta}\leq\varepsilon\leq R$, there exists $N_{\mathrm{ER}}$ such that for $n \geq N_{\mathrm{ER}}$:
+\[
+H_2 \leq \frac{8cC_1^{-\beta}K\bigl(R/\varepsilon\bigr)^{\beta}A^{\mathrm{ER}}(n)^{-(b-1)}}{b-1} = \frac{8cC_1^{-\beta}KR^{\beta}\varepsilon^{-\beta}A^{\mathrm{ER}}(n)^{-(b-1)}}{b-1}.
+\]
+Combining $H_1$ and $H_2$ yields~\eqref{eq:lemma10_ER}.
+\end{proof}
+
+\begin{theorem}[Concentration of power mean with ER --- Modified Theorem~1]\label{thm:bandit_ER}
+For $a \in [K]$, let $(\muhat_{a,n})_{n \geq 1}$ satisfy Assumption~1. Assume arms are sampled according to~\eqref{eq:bandit_ER} with parameters $\alpha, \beta, b, C_1, C_2$, and $p, \alpha, \beta, b$ satisfy one of:
+\begin{enumerate}
+\item[(i)] $1 \leq p \leq 2$ and $\alpha \leq \beta/2$;
+\item[(ii)] $p > 2$ and $0 < \alpha - \beta/p < 1$.
+\end{enumerate}
+If $\alpha(1 - b/\alpha) \leq b < \alpha$, then $\muhat_n(p) \xrightarrow{\alpha', \beta'} \mu^*$ with $\alpha' = (b-1)(1-b/\alpha)$ and $\beta' = (b-1)$.
+\end{theorem}
+
+\begin{proof}
+We use Lemma~\ref{lem:modified_lemma10}. Set
+\[
+\varepsilon = 2^{1/p}R(2K-1)\left(\frac{A^{\mathrm{ER}}(n)x}{n}\right).
+\]
+Recall $A^{\mathrm{ER}}(n) = \bigl(\frac{2C_1}{\Delta}\bigr)^{\beta/\alpha}n^{b/\alpha} + D$ with $D = \frac{4C_2}{\Delta}$.
+
+We verify $\varepsilon \geq \frac{\varepsilon_0 x}{n}$ for $n$ large enough. Computing:
+\begin{align*}
+\varepsilon - \frac{\varepsilon_0 x}{n} &= 2^{1/p}R(2K-1)\frac{A^{\mathrm{ER}}(n)x}{n} - 2^{1/p}R(K-1)\frac{(A^{\mathrm{ER}}(n)+3)x}{n} - 2^{1/p}\varepsilon' \\
+&= 2^{1/p}RK\frac{A^{\mathrm{ER}}(n)x}{n} - 2^{1/p}R(K-1)\frac{3x}{n} - 2^{1/p}\varepsilon' \\
+&= \underbrace{2^{1/p}R(K-1)\frac{x}{n}(A^{\mathrm{ER}}(n)-3)}_{T_1} + \underbrace{2^{1/p}R\frac{A^{\mathrm{ER}}(n)x}{n} - 2^{1/p}\varepsilon'}_{T_2},
+\end{align*}
+where $\varepsilon' = n^{-\alpha/\beta}x$ satisfies $\varepsilon' \geq n^{-\alpha/\beta}$. Since $A^{\mathrm{ER}}(n) = \Theta(n^{b/\alpha}) \to \infty$, $T_1 > 0$ for $n$ large. Since $A^{\mathrm{ER}}(n)/n = \Theta(n^{-(1-b/\alpha)})$ and $1-b/\alpha \leq 1/2 \leq \alpha/\beta$, we have $RA^{\mathrm{ER}}(n)x/n \geq n^{-(1-b/\alpha)}x \geq n^{-\alpha/\beta}x = \varepsilon'$. So $T_2 \geq 0$.
+
+Therefore $\varepsilon \geq \varepsilon_0 x/n$ for all $n \geq N_0$ for some $N_0$. By Lemma~\ref{lem:modified_lemma10}:
+\begin{align*}
+D &\coloneqq \Prob(|\muhat_n(p)-\mu^*| \geq \varepsilon) \leq \Prob\left(|\muhat_n(p)-\mu^*| \geq \frac{\varepsilon_0 x}{n}\right) \\
+&\leq \frac{8cC_1^{-\beta}KR^{\beta}\varepsilon^{-\beta}A^{\mathrm{ER}}(n)^{-(b-1)}}{b-1} + \frac{2cC_1^{-\beta}(K-1)(A^{\mathrm{ER}}(n)x)^{-(b-1)}}{b-1},
+\end{align*}
+where we used $2^{1/p}(3+A^{\mathrm{ER}}(n))x - 1 > A^{\mathrm{ER}}(n)x$ for $x \geq 1$.
+
+Now substituting $\varepsilon = 2^{1/p}R(2K-1)A^{\mathrm{ER}}(n)x/n$ and $A^{\mathrm{ER}}(n) = \bigl(\frac{2C_1}{\Delta}\bigr)^{\beta/\alpha}n^{b/\alpha} + D$:
+\begin{align*}
+D &\leq \frac{8cC_1^{-\beta}KR^{\beta}}{b-1}\cdot n^{\beta(1-b/\alpha)}\cdot A^{\mathrm{ER}}(n)^{-(b-1)}\cdot x^{-\beta} \\
+&\quad + \frac{2cC_1^{-\beta}(K-1)}{b-1}\cdot A^{\mathrm{ER}}(n)^{-(b-1)}\cdot x^{-(b-1)}.
+\end{align*}
+Since $A^{\mathrm{ER}}(n)^{-(b-1)} = \Theta(n^{-b(b-1)/\alpha})$ (the additive $D$ does not affect the leading order), we obtain:
+\[
+D \leq c_{\mathrm{ER}}n^{-\alpha'}\varepsilon^{-\beta'},
+\]
+with $\alpha' = \min\bigl\{\frac{b}{\alpha}(b-1),\ b-1\bigr\} = \frac{b}{\alpha}(b-1)$ and $\beta' = \max\{b-1, \beta\} = b-1$. Using the condition $\alpha(1-b/\alpha) \leq b$, we can set $\alpha' = (b-1)(1-b/\alpha)$ and $\beta' = (b-1)$.
+
+The constant is
+\[
+c_{\mathrm{ER}} = \frac{16cC_1^{-\beta}K}{b-1}\left(\frac{2C_1}{\Delta}\right)^{-\frac{\beta}{\alpha}(b-1)}\left(\frac{1}{2^{1/p}R(2K-1)}\left(\frac{2C_1}{\Delta}\right)^{-\beta/\alpha}\right)^{-\beta}(1+D/A(n))^{-(b-1)},
+\]
+which for $n$ large converges to the same constant as in \citet[Eq.~58]{dam2024power} with a multiplicative correction factor $(1+D/A(n))^{-(b-1)} \to 1$. To ensure the bound holds for all $n \geq 1$ (not just $n \geq N_0$), we note that for $1 \leq n < N_0$, $|\muhat_n(p)-\mu^*| \leq R$. We can choose $c_{\mathrm{ER}}$ large enough so that $c_{\mathrm{ER}}n^{-\alpha'}\varepsilon^{-\beta'} \geq 1$ for all $\varepsilon \leq R$ and $n < N_0$, making the bound trivially correct.
+\end{proof}
+
+\subsection{MCTS Convergence}
+
+We now apply the bandit results to the MCTS tree, proceeding by induction as in \citet{dam2024power}.
+
+\begin{theorem}[Convergence of MCTS-ER]\label{thm:main}
+When we apply the MCTS-ER algorithm (Algorithm~\ref{alg:mcts-er}) with algorithmic constants $\{b_i\}_{i=0}^H$, $\{\alpha_i\}_{i=0}^H$, $\{\beta_i\}_{i=0}^H$ satisfying the conditions in Table~\ref{tab:conditions}, we have:
+\begin{enumerate}
+    \item[(i)] For any node $s_h$ at depth $h$ in the tree ($h = 0, 1, \ldots, H$):
+    \[
+    \Vhat_n(s_h) \xrightarrow{\alpha_h, \beta_h} \widetilde{V}(s_h).
+    \]
+    \item[(ii)] For any node $s_h$ at depth $h$ in the tree ($h = 0, 1, \ldots, H-1$):
+    \[
+    \Qhat_n(s_h, a) \xrightarrow{\alpha_{h+1}, \beta_{h+1}} \widetilde{Q}(s_h, a), \quad \text{for all } a \in \mathcal{A}_{s_h}.
+    \]
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+We prove by induction on the depth $H$.
+
+\textbf{Base case ($H = 1$).}
+The state at the root node is $s_0$. Let $r^t(s_0,a)$ be the intermediate reward at time $t$ after visiting $(s_0,a)$, and $s_1 \sim P(\cdot|s_0,a)$. Recall $\widetilde{Q}(s_0,a) = r(s_0,a) + \gamma\sum_{s_1}P(s_1|s_0,a)\widetilde{V}(s_1)$.
+
+\emph{Claim~(i) at leaves.} For any $s_1 \sim P(\cdot|s_0,a)$, $\Vhat_n(s_1)$ is the average of i.i.d.\ calls to the playout policy $\pi_0(s_1)$, so by standard concentration:
+\begin{equation}\label{eq:leaf_conc}
+\Vhat_n(s_1) \xrightarrow{\alpha_1,\beta_1} \widetilde{V}(s_1).
+\end{equation}
+
+\emph{Claim~(ii) at root.} From Eq.~\eqref{eq:Qhat}:
+\[
+\Qhat_n(s_0,a) = \frac{1}{n}\sum_{i=1}^n \Bigl[r^i(s_0,a) + \gamma\Vhat_{T^{s_1}_{s_0,a}(i)}(s_1)\Bigr].
+\]
+Applying Lemma~1 of \citet{dam2024power} with $X_i = r^i(s_0,a)$ (i.i.d.\ rewards with mean $r(s_0,a)$), $p = (p_1,\ldots,p_M)$ as the transition probabilities of taking action $a$ at state $s_0$, and using~\eqref{eq:leaf_conc} for each $(Vb_{m,n})_{n \geq 1}$:
+\begin{equation}\label{eq:Q_conc_root}
+\Qhat_n(s_0,a) \xrightarrow{\alpha_1,\beta_1} \widetilde{Q}(s_0,a), \quad \text{for all } a \in \mathcal{A}_{s_0}.
+\end{equation}
+Critically, Lemma~1 depends only on the concentration properties of child value estimates and the i.i.d.\ rewards; it does \emph{not} depend on the selection strategy.
+
+\emph{Claim~(i) at root.} At $s_0$, the MCTS-ER selection uses the combined bonus~\eqref{eq:combined_bonus}. The Q-value estimates~\eqref{eq:Q_conc_root} satisfy Assumption~1 with rate $(\alpha_1,\beta_1)$. By Theorem~\ref{thm:bandit_ER}, the power mean estimator under MCTS-ER concentrates:
+\[
+\Vhat_n(s_0) = \left(\sum_a\frac{T_{s_0,a}(n)}{n}\bigl(\Qhat_{T_{s_0,a}(n)}(s_0,a)\bigr)^p\right)^{1/p} \xrightarrow{\alpha_0,\beta_0} \widetilde{V}(s_0),
+\]
+with $\alpha_0 = (b_0-1)(1-b_0/\alpha_0)$ and $\beta_0 = (b_0-1)$ satisfying Table~\ref{tab:conditions}. This concludes the base case.
+
+\textbf{Inductive step ($H-1 \to H$).}
+Assume the theorem holds for trees of depth $H-1$. Consider a tree of depth $H$.
+
+When we take action $a$ at root $s_0$ and get $s_1 \sim P(\cdot|s_0,a)$, we enter a subtree of depth $H-1$. The MCTS-ER selection within this subtree uses the combined bonus with parameters $(\alpha_{h+1},\beta_{h+1},b_{h+1})$ at each depth $h \geq 1$, together with the ER bonus $C_2/T_{s_h,a}$ at every depth. By Lemma~\ref{lem:dominance}, the ER bonus is dominated at every depth, and by Remark~\ref{rmk:local}, the ER contribution decomposes locally.
+
+By the induction hypothesis, in the subtree rooted at $s_1$:
+\begin{align}
+\Vhat_n(s_h) &\xrightarrow{\alpha_h,\beta_h} \widetilde{V}(s_h), \quad \text{for } h = 1,\ldots,H, \label{eq:ind_V}\\
+\Qhat_n(s_h,a) &\xrightarrow{\alpha_{h+1},\beta_{h+1}} \widetilde{Q}(s_h,a), \quad \text{for } h = 1,\ldots,H-1. \label{eq:ind_Q}
+\end{align}
+
+Now consider the root node $s_0$. Applying Lemma~1 of \citet{dam2024power} with $X_i = r^i(s_0,a)$ and each $(\Vhat_{m,n})_{n \geq 1}$ satisfying~\eqref{eq:ind_V} at rate $(\alpha_1,\beta_1)$, where $s_1 \in \{s_m\}$, $s_m \sim P(\cdot|s_0,a)$:
+\begin{equation}\label{eq:Q_conc_ind}
+\Qhat_n(s_0,a) \xrightarrow{\alpha_1,\beta_1} \widetilde{Q}(s_0,a), \quad \text{for all } a \in \mathcal{A}_{s_0}.
+\end{equation}
+
+At the root $s_0$, applying Theorem~\ref{thm:bandit_ER} with the concentration~\eqref{eq:Q_conc_ind} and the power mean value backup operator:
+\begin{equation}\label{eq:V_conc_ind}
+\Vhat_n(s_0) \xrightarrow{\alpha_0,\beta_0} \widetilde{V}(s_0),
+\end{equation}
+with $\alpha_0, \beta_0$ satisfying the recursive relations in Table~\ref{tab:conditions}.
+
+Combining~\eqref{eq:ind_V} and~\eqref{eq:V_conc_ind} concludes (i). Combining~\eqref{eq:ind_Q} and~\eqref{eq:Q_conc_ind} concludes (ii). The results hold for any node in the tree of depth $H$, completing the induction.
+\end{proof}
+
+\begin{theorem}[Convergence of expected payoff]\label{thm:rate}
+At the root node $s_0$, with the best possible parameter tuning:
+\[
+\bigl|\E[\Vhat_n(s_0)] - \widetilde{V}(s_0)\bigr| \leq O(n^{-1/2}).
+\]
+\end{theorem}
+
+\begin{proof}
+Using the convexity of $f(x)=|x|$ and applying Jensen's inequality:
+\begin{align*}
+\bigl|\E[\Vhat_n(s_0)] - \widetilde{V}(s_0)\bigr| &\leq \E\bigl[|\Vhat_n(s_0) - \widetilde{V}(s_0)|\bigr] = \int_0^\infty \Prob\bigl(|\Vhat_n(s_0) - \widetilde{V}(s_0)| \geq s\bigr)ds \\
+&\leq \int_0^{n^{-\alpha_0/\beta_0}} 1ds + \int_{n^{-\alpha_0/\beta_0}}^\infty c_{\mathrm{ER}}n^{-\alpha_0}s^{-\beta_0}ds \\
+&= n^{-\alpha_0/\beta_0} + c_{\mathrm{ER}}n^{-\alpha_0}\left[\frac{s^{-\beta_0+1}}{-\beta_0+1}\right]_{n^{-\alpha_0/\beta_0}}^{\infty} = \left(\frac{c_{\mathrm{ER}}}{\beta_0 - 1} + 1\right) n^{-\alpha_0/\beta_0}.
+\end{align*}
+Because $\alpha_0/\beta_0 \leq 1/2$ (Theorem~\ref{thm:bandit_ER}), the best rate is $O(n^{-1/2})$.
+\end{proof}
+
+\begin{remark}[Same rate, different constant]
+MCTS-ER achieves the same $O(n^{-1/2})$ convergence rate as Stochastic-Power-UCT, but with a potentially larger constant $c_{\mathrm{ER}} \geq c_0$.
+The constant $c_{\mathrm{ER}}$ depends on $C_2$, $K$, $\Delta_{\min}$, and the original parameters.
+The ER bonus provides a finite-time improvement that is not captured by the asymptotic rate.
+\end{remark}
+
+\begin{remark}[Optimal exploration bonus]\label{rmk:optimal_bonus}
+By selecting algorithmic constants from Table~\ref{tab:conditions} such that $\alpha_i/\beta_i = 1/2$ and $b_i/\beta_i = 1/4$ for $i \in [0,H]$, we achieve the optimal rate. This yields the combined exploration bonus:
+\[
+B_h(n, s, a) = C_1 \frac{n^{1/4}}{T_{s,a}(n)^{1/2}} + \frac{C_2}{T_{s,a}(n)}.
+\]
+For large $T_{s,a}(n)$, the ER term is negligible; for small $T_{s,a}(n)$ (sparse planning regime), the ER term provides a significant additional push for exploration. These findings align with those of \citet{shah2022nonasymptotic} and \citet{dam2024power}, but more broadly apply to the ER-augmented power mean estimator.
+\end{remark}
+
+%% ============================================================
+%% PART II
+%% ============================================================
+\bigskip
+\begin{center}
+\Large\textsc{Part II: Convex Regularized MCTS-ER}
+\end{center}
+\bigskip
+
+%% ============================================================
+\section{Convex Regularized MCTS Background}
+\label{sec:convex_prelim}
+%% ============================================================
+
+We now study a complementary framework: combining the ER bonus with convex-regularized MCTS \citep{dam2021convex}, which achieves exponential (rather than polynomial) convergence rates through the Legendre-Fenchel transform.
+
+\subsection{Regularized Bellman Operator}
+
+Let $\Omega: \Pi \to \R$ be a strongly convex function on the policy simplex.
+The \emph{Legendre-Fenchel transform} (convex conjugate) of $\Omega$ is $\Omega^*: \R^{|\mathcal{A}|} \to \R$:
+\begin{equation}\label{eq:LF}
+\Omega^*(Q_s) \coloneqq \max_{\pi_s \in \Pi_s} \langle \pi_s, Q_s \rangle - \tau \Omega(\pi_s),
+\end{equation}
+where $\tau > 0$ is the regularization temperature.
+The maximizing argument defines the regularized policy:
+\begin{equation}\label{eq:grad_LF}
+\nabla\Omega^*(Q_s) = \arg\max_{\pi_s \in \Pi_s} \langle \pi_s, Q_s \rangle - \tau \Omega(\pi_s).
+\end{equation}
+
+\begin{proposition}[Properties of $\Omega^*$, cf.\ Dam et al.\ (2021)]\label{prop:LF}
+Let $\Omega$ be strongly convex.
+\begin{enumerate}
+\item \textbf{Lipschitz gradient:} $\nabla\Omega^*$ is Lipschitz continuous with constant $L_\Omega > 0$.
+\item \textbf{Boundedness:} If $L_\Omega^{\min} \leq \Omega(\pi_s) \leq U_\Omega$ for all $\pi_s \in \Pi_s$, then
+$\max_a Q_s(a) - \tau U_\Omega \leq \Omega^*(Q_s) \leq \max_a Q_s(a) - \tau L_\Omega^{\min}$.
+\item \textbf{Contraction:} $\|\Omega^*(Q_1) - \Omega^*(Q_2)\|_\infty \leq \gamma \|Q_1 - Q_2\|_\infty$.
+\end{enumerate}
+\end{proposition}
+
+\subsection{E3W Sampling Strategy and Entropy Regularizers}
+
+The E3W (Extended Empirical Exponential Weight) strategy \citep{dam2021convex} selects actions via:
+\begin{equation}\label{eq:E3W}
+\pi_t(a|s) = (1 - \lambda_s)\nabla\Omega^*(Q_\Omega(s, \cdot)/\tau)(a) + \frac{\lambda_s}{|\mathcal{A}|},
+\end{equation}
+where $\lambda_s = |\mathcal{A}|\epsilon / \log(\sum_a N(s,a) + 1)$ with $\epsilon > 0$.
+Three choices of $\Omega$ yield the MENTS, RENTS, and TENTS algorithms:
+
+\begin{itemize}
+\item \textbf{Maximum entropy (MENTS):} $\Omega(\pi) = \sum_a \pi(a|s)\log\pi(a|s)$,
+\[
+\Omega^*(Q_s) = \tau\log\sum_a e^{Q(s,a)/\tau}, \quad \nabla\Omega^*(Q_s)(a) = \frac{e^{Q(s,a)/\tau}}{\sum_b e^{Q(s,b)/\tau}}.
+\]
+
+\item \textbf{Relative entropy (RENTS):} $\Omega(\pi_t) = D_{\mathrm{KL}}(\pi_t \| \pi_{t-1})$,
+\[
+\nabla\Omega^*(Q_s)(a) = \frac{\pi_{t-1}(a|s) e^{Q_t(s,a)/\tau}}{\sum_b \pi_{t-1}(b|s) e^{Q_t(s,b)/\tau}}.
+\]
+
+\item \textbf{Tsallis entropy (TENTS):} $\Omega(\pi) = \frac{1}{2}(\|\pi\|_2^2 - 1)$,
+\[
+\nabla\Omega^*(Q_s)(a) = \max\left\{\frac{Q(s,a)}{\tau} - \frac{\sum_{a' \in \mathcal{K}} Q(s,a')/\tau - 1}{|\mathcal{K}|},\ 0\right\},
+\]
+where $\mathcal{K} \subseteq \mathcal{A}$ is the \emph{sparsity set} of actions receiving nonzero probability.
+\end{itemize}
+
+\subsection{Known Convergence Results}
+
+\begin{theorem}[Exponential convergence, Dam et al.\ (2021)]\label{thm:exp_conv_orig}
+At the root node $s$ with $N(s)$ visitations, for $\epsilon > 0$ and constants $C, \hat{C}$:
+\[
+\Prob(|V_\Omega(s) - V^*_\Omega(s)| > \epsilon) \leq C \exp\left\{-\frac{N(s)}{\hat{C}\sigma\log^2(2 + N(s))}\right\}.
+\]
+\end{theorem}
+
+\begin{theorem}[Exponential action convergence, Dam et al.\ (2021)]\label{thm:action_conv_orig}
+Let $a_t$ be the action returned by E3W at step $t$. For large enough $t$:
+\[
+\Prob(a_t \neq a^*) \leq Ct\exp\left\{-\frac{t}{\hat{C}\sigma(\log t)^3}\right\}.
+\]
+\end{theorem}
+
+%% ============================================================
+\section{ER-Augmented Convex Regularized MCTS}
+\label{sec:convex_algorithm}
+%% ============================================================
+
+We augment the convex-regularized framework by injecting the ER bonus directly into the Q-values before computing the regularized policy.
+
+\begin{definition}[ER-augmented Q-values]\label{def:QER}
+At node $s$ with action visit count $T_{s,a}(t)$, define:
+\begin{equation}\label{eq:Q_ER_convex}
+Q_\Omega^{\mathrm{ER}}(s, a) \coloneqq Q_\Omega(s, a) + \frac{c_2}{T_{s,a}(t)},
+\end{equation}
+where $c_2 > 0$ is the ER strength parameter.
+\end{definition}
+
+The ER-augmented E3W policy (which we call \textbf{E3W-ER}) is:
+\begin{equation}\label{eq:E3W_ER}
+\pi_t^{\mathrm{ER}}(a|s) = (1 - \lambda_s) \nabla\Omega^*\left(\frac{Q_\Omega^{\mathrm{ER}}(s, \cdot)}{\tau}\right)(a) + \frac{\lambda_s}{|\mathcal{A}|}.
+\end{equation}
+
+The backup operator remains unchanged: $Q_\Omega$ is updated using the original regularized backup, and the ER bonus is added only at \emph{selection time}.
+This separation is important --- the ER bonus affects \emph{which actions are explored} but not \emph{how values are estimated}.
+
+\subsection{ER-Augmented Policies for Each Regularizer}
+
+\paragraph{MENTS-ER.}
+The softmax policy with ER bonus:
+\begin{equation}\label{eq:ments_er}
+\pi^{\mathrm{ER}}(a|s) \propto \exp\left(\frac{Q(s,a) + c_2/T_{s,a}}{\tau}\right).
+\end{equation}
+The ER term acts as a temperature-scaled optimistic shift in the logits.
+
+\paragraph{RENTS-ER.}
+The prior-weighted policy with ER bonus:
+\begin{equation}\label{eq:rents_er}
+\pi_t^{\mathrm{ER}}(a|s) \propto \pi_{t-1}(a|s) \cdot \exp\left(\frac{Q_t(s,a) + c_2/T_{s,a}}{\tau}\right).
+\end{equation}
+
+\paragraph{TENTS-ER (Tsallis + Effective Resistance).}
+The sparse policy with ER bonus:
+\begin{equation}\label{eq:tents_er}
+\pi^{\mathrm{ER}}(a|s) = \max\left\{\frac{Q(s,a) + c_2/T_{s,a}}{\tau} - \frac{\sum_{a' \in \mathcal{K}_{\mathrm{ER}}} (Q(s,a') + c_2/T_{s,a'})/\tau - 1}{|\mathcal{K}_{\mathrm{ER}}|},\ 0\right\},
+\end{equation}
+where $\mathcal{K}_{\mathrm{ER}}$ is the sparsity set computed using the ER-augmented Q-values $Q^{\mathrm{ER}}$.
+
+\begin{remark}[Adaptive sparsity in TENTS-ER]\label{rmk:adaptive_sparsity}
+The sparsity set $\mathcal{K}_{\mathrm{ER}}$ is determined by which actions satisfy:
+\[
+1 + i\cdot\frac{Q(s,a_i) + c_2/T_{s,a_i}}{\tau} > \sum_{j=1}^i \frac{Q(s,a_j) + c_2/T_{s,a_j}}{\tau},
+\]
+where $a_i$ is the action with the $i$-th largest augmented Q-value.
+In the early phase, when many actions have small $T_{s,a}$, the ER bonus $c_2/T_{s,a}$ inflates Q-values broadly, causing more actions to satisfy the threshold and \emph{expanding} $\mathcal{K}_{\mathrm{ER}}$.
+As visits accumulate, $c_2/T_{s,a} \to 0$ and $\mathcal{K}_{\mathrm{ER}} \to \mathcal{K}$ (the unaugmented sparsity set), contracting the policy back to sparse exploitation.
+
+This provides an \emph{adaptive sparsity schedule}: broad exploration early, sparse exploitation late --- without any manual annealing.
+In contrast, vanilla TENTS has a fixed sparsity pattern determined solely by Q-values, which can prematurely exclude promising actions before they are sufficiently explored.
+\end{remark}
+
+%% ============================================================
+\section{Convergence Analysis for Convex Regularized MCTS-ER}
+\label{sec:convex_theory}
+%% ============================================================
+
+We derive the convergence properties of E3W-ER by following the proof architecture of \citet{dam2021convex}. The key insight is that the ER perturbation $c_2/T_{s,a}$ vanishes at rate $O(\log t/t)$, which is absorbed by the exponential convergence envelope $\exp(-t/(\log t)^3)$. We establish this through a sequence of lemmas that parallel Lemmas~1--5 and Theorems~1--4 of \citet{dam2021convex}, explicitly tracking the ER perturbation at each step.
+
+\subsection{Leaf Concentration under E3W-ER}
+
+\begin{lemma}[ER-modified Lemma~1 --- Leaf concentration]\label{lem:leaf_ER}
+For the E3W-ER policy applied to a tree, let $\hat{r}$ and $r$ be respectively the average and the expected reward at the leaf node, with the reward distribution being $\sigma^2$-sub-Gaussian. For $t \geq 4$:
+\[
+\Prob\left(\|r - \hat{r}_t\|_\infty \geq \frac{2\sigma}{\log(2+t)}\right) \leq 4|\mathcal{A}|\exp\left(-\frac{t}{(\log(2+t))^3}\right).
+\]
+\end{lemma}
+
+\begin{proof}
+At the leaf nodes, the ER bonus does not affect the playout evaluation --- rewards are still collected as i.i.d.\ samples from the playout policy $\pi_0$. The E3W-ER policy at the leaf differs from E3W only in the selection phase, which determines \emph{how often} each action is visited, not \emph{how rewards are generated}.
+
+Let $N_t(a)$ be the number of times action $a$ has been chosen until time $t$, and $\hat{N}_t(a) = \sum_{s=1}^t \pi_s^{\mathrm{ER}}(a)$. The E3W-ER policy~\eqref{eq:E3W_ER} contains the uniform mixing term $\lambda_s/|\mathcal{A}|$ with $\lambda_s = |\mathcal{A}|\epsilon/\log(1+s)$. Therefore, for all $a$ and $t \geq 4$:
+\[
+\hat{N}_t(a) = \sum_{s=1}^t \pi_s^{\mathrm{ER}}(a) \geq \sum_{s=1}^t \frac{\lambda_s}{|\mathcal{A}|} = \sum_{s=1}^t \frac{\epsilon}{\log(1+s)} \geq \frac{t}{2\log(2+t)},
+\]
+where the last inequality follows from the integral bound $\sum_{s=1}^t 1/\log(1+s) \geq \int_1^{1+t}1/\log(1+s)ds \geq t/\log(2+t) - 1/\log 2$.
+
+From Theorem~2.19 of \citet[Wainwright, 2019]{dam2021convex}, the concentration inequality for martingale differences gives:
+\[
+\Prob(|N_t(a) - \hat{N}_t(a)| > \delta) \leq 2\exp\left(-\frac{2\delta^2}{t}\right),
+\]
+where $\sigma_s^2 \leq 1/4$ is the variance of the Bernoulli with $p = \pi_s^{\mathrm{ER}}(a)$. Define the event $\mathcal{E} = \{\forall a \in \mathcal{A}:\ |N_t(a) - \hat{N}_t(a)| \leq \delta\}$. By a union bound:
+\begin{equation}\label{eq:visit_conc_leaf}
+\Prob(|\hat{N}_t(a) - N_t(a)| \geq \delta) \leq 2|\mathcal{A}|\exp\left(-\frac{2\delta^2}{t}\right).
+\end{equation}
+Conditioned on $\mathcal{E}$ with $\delta = t/(4\log(2+t))$, we get $N_t(a) \geq t/(4\log(2+t))$. For any action $a$, by the sub-Gaussian property:
+\[
+\Prob\left(|r(a) - \hat{r}_t(a)| > \sqrt{\frac{8\sigma^2\log(2/\delta')\log(2+t)}{t}}\right) \leq \Prob\left(|r(a) - \hat{r}_t(a)| > \sqrt{\frac{2\sigma^2\log(2/\delta')}{N_t(a)}}\right) \leq \delta'.
+\]
+Choosing $\delta'$ such that $\log(2/\delta') = 1/(\log(2+t))^3$:
+\[
+\Prob\left(|r(a) - \hat{r}_t(a)| > \frac{2\sigma}{\log(2+t)}\right) \leq 2\exp\left(-\frac{1}{(\log(2+t))^3}\right).
+\]
+Combining with~\eqref{eq:visit_conc_leaf} via the law of total probability:
+\begin{align*}
+\Prob\left(\|r - \hat{r}_t\|_\infty > \frac{2\sigma}{\log(2+t)}\right) &\leq \Prob\left(\|r - \hat{r}_t\|_\infty > \frac{2\sigma}{\log(2+t)} \;\Big|\; \mathcal{E}\right) + \Prob(\mathcal{E}^c) \\
+&\leq 2|\mathcal{A}|\exp\left(-\frac{1}{(\log(2+t))^3}\right) + 2|\mathcal{A}|\exp\left(-\frac{t}{(\log(2+t))^3}\right) \\
+&\leq 4|\mathcal{A}|\exp\left(-\frac{t}{(\log(2+t))^3}\right). \qedhere
+\end{align*}
+\end{proof}
+
+\subsection{Visit Count Concentration under E3W-ER}
+
+\begin{lemma}[ER-modified Lemma~2 --- Lipschitz policy perturbation]\label{lem:lipschitz_policy_ER}
+Given two Q-value vectors $Q^{(1)}$ and $Q^{(2)}$, the E3W-ER policies satisfy: there exists $L > 0$ such that
+\[
+\|\nabla\Omega^*(Q^{(1)}_{\mathrm{ER}}/\tau) - \nabla\Omega^*(Q^{(2)}_{\mathrm{ER}}/\tau)\|_p \leq L\|Q^{(1)}_{\mathrm{ER}}/\tau - Q^{(2)}_{\mathrm{ER}}/\tau\|_p.
+\]
+\end{lemma}
+
+\begin{proof}
+This follows directly from the Lipschitz continuity of $\nabla\Omega^*$ (Proposition~\ref{prop:LF}). Since the ER bonus is added before applying $\nabla\Omega^*$, the Lipschitz property applies to the augmented Q-values with the same constant $L$. The $\ell_p$-norm depends on the choice of regularizer: $p = \infty$ for maximum and relative entropy, and $p = 2$ for Tsallis entropy \citep[cf.][]{dam2021convex}.
+\end{proof}
+
+\begin{lemma}[ER-modified Lemma~3 --- Expected visit count concentration]\label{lem:visit_expected_ER}
+Consider E3W-ER applied to a tree. At any node $s$ at depth $d$, define $N^*_t(s,a) = \pi^*(a|s)\cdot t$ and $\hat{N}_t(s,a) = \sum_{k=1}^t \pi_k^{\mathrm{ER}}(a|s)$. There exist constants $C_{\mathrm{ER}}^{(3)}, \hat{C}_{\mathrm{ER}}^{(3)}$ such that
+\[
+\Prob\left(|\hat{N}_t(s,a) - N^*_t(s,a)| > \frac{C_{\mathrm{ER}}^{(3)} t}{\log t}\right) \leq \hat{C}_{\mathrm{ER}}^{(3)}|\mathcal{A}|t\exp\left(-\frac{t}{(\log t)^3}\right).
+\]
+\end{lemma}
+
+\begin{proof}
+Define the event $\mathcal{E}_{r,k} = \{\|r(s',\cdot) - \hat{r}_k(s',\cdot)\|_\infty < 2\sigma/\log(2+k)\}$. Conditioned on $\bigcap_{i=1}^t \mathcal{E}_{r,i}$ and for $t \geq 4$, we bound $|\hat{N}_t(s,a) - N^*_t(s,a)|$:
+\begin{align}
+|\hat{N}_t(s,a) - N^*_t(s,a)| &\leq \sum_{k=1}^t |\pi_k^{\mathrm{ER}}(a|s) - \pi^*(a|s)| + \sum_{k=1}^t \lambda_k \nonumber\\
+&\leq \sum_{k=1}^t \|\hat{\pi}_k^{\mathrm{ER}}(\cdot|s) - \pi^*(\cdot|s)\|_\infty + \sum_{k=1}^t \lambda_k \nonumber\\
+&\leq \sum_{k=1}^t \|\hat{\pi}_k^{\mathrm{ER}}(\cdot|s) - \pi^*(\cdot|s)\|_p + \sum_{k=1}^t \lambda_k \nonumber\\
+&\leq L\sum_{k=1}^t \|\hat{Q}_k^{\mathrm{ER}}(s',\cdot)/\tau - Q^*(s',\cdot)/\tau\|_p + \sum_{k=1}^t \lambda_k, \label{eq:visit_decomp}
+\end{align}
+where the last step uses Lemma~\ref{lem:lipschitz_policy_ER}. Now we decompose the Q-value perturbation:
+\begin{align*}
+\|\hat{Q}_k^{\mathrm{ER}}(s',\cdot)/\tau - Q^*(s',\cdot)/\tau\|_p &\leq \|\hat{Q}_k(s',\cdot)/\tau - Q^*(s',\cdot)/\tau\|_p + \|c_2/({\tau T_{s',\cdot}(k)})\|_p \\
+&\leq |\mathcal{A}|^{1/p}\gamma^d\|\hat{r}_k(s'',\cdot) - r(s'',\cdot)\|_\infty + \frac{c_2|\mathcal{A}|^{1/p}}{\tau}\cdot\frac{4\log(2+k)}{k},
+\end{align*}
+where the first term uses the contraction property (Proposition~\ref{prop:LF}) and the second uses the visit count lower bound $T_{s',a}(k) \geq k/(4\log(2+k))$ from the E3W uniform mixing. Substituting into~\eqref{eq:visit_decomp}:
+\begin{align*}
+|\hat{N}_t(s,a) - N^*_t(s,a)| &\leq L|\mathcal{A}|^{1/p}\gamma^d \sum_{k=1}^t \frac{2\sigma}{\log(2+k)} + \frac{4Lc_2|\mathcal{A}|^{1/p}}{\tau}\sum_{k=1}^t \frac{\log(2+k)}{k} + \sum_{k=1}^t \frac{|\mathcal{A}|\epsilon}{\log(1+k)} \\
+&\leq L|\mathcal{A}|^{1/p}\gamma^d \cdot \frac{2\sigma t}{\log t} + \frac{4Lc_2|\mathcal{A}|^{1/p}}{\tau}\cdot (\log t)^2 + \frac{|\mathcal{A}|\epsilon t}{\log t} \\
+&\leq \frac{C_{\mathrm{ER}}^{(3)} t}{\log t},
+\end{align*}
+for some constant $C_{\mathrm{ER}}^{(3)}$ depending on $|\mathcal{A}|, p, d, \sigma, L, \gamma, c_2, \tau, \epsilon$. The crucial observation is that the ER contribution $\sum_{k=1}^t (\log k)^2/k = O((\log t)^2) = o(t/\log t)$, so it is absorbed into the leading $O(t/\log t)$ term. Finally:
+\[
+\Prob\left(|\hat{N}_t(s,a) - N^*_t(s,a)| \geq \frac{C_{\mathrm{ER}}^{(3)} t}{\log t}\right) \leq \sum_{i=1}^t \Prob(\mathcal{E}_{r,i}^c) \leq 4|\mathcal{A}|t\exp\left(-\frac{t}{(\log(2+t))^3}\right). \qedhere
+\]
+\end{proof}
+
+\begin{lemma}[ER-modified Lemma~4 --- Actual visit count concentration]\label{lem:visit_actual_ER}
+Under E3W-ER, at any node $s$, let $N_t(s,a)$ be the actual number of times action $a$ has been chosen until step $t$. There exist constants $C_{\mathrm{ER}}^{(4)}, \hat{C}_{\mathrm{ER}}^{(4)}$ such that
+\[
+\Prob\left(|N_t(s,a) - N^*_t(s,a)| > \frac{C_{\mathrm{ER}}^{(4)} t}{\log t}\right) \leq \hat{C}_{\mathrm{ER}}^{(4)}t\exp\left(-\frac{t}{(\log t)^3}\right).
+\]
+\end{lemma}
+
+\begin{proof}
+Using Lemma~\ref{lem:visit_expected_ER} and the concentration bound~\eqref{eq:visit_conc_leaf}:
+\begin{align*}
+&\Prob\left(|N_t(s,a) - N^*_t(s,a)| > (1 + C_{\mathrm{ER}}^{(3)})\frac{t}{\log t}\right) \\
+&\quad\leq \Prob\left(|\hat{N}_t(s,a) - N^*_t(s,a)| > \frac{C_{\mathrm{ER}}^{(3)} t}{\log t}\right) + \Prob\left(|N_t(s,a) - \hat{N}_t(s,a)| > \frac{t}{\log t}\right) \\
+&\quad\leq \hat{C}_{\mathrm{ER}}^{(3)}|\mathcal{A}|t\exp\left(-\frac{t}{(\log(2+t))^3}\right) + 2|\mathcal{A}|\exp\left(-\frac{t}{(\log(2+t))^2}\right) \\
+&\quad\leq \hat{C}_{\mathrm{ER}}^{(4)}t\exp\left(-\frac{t}{(\log t)^3}\right). \qedhere
+\end{align*}
+\end{proof}
+
+\subsection{Exponential Convergence of ER-Augmented Value}
+
+\begin{lemma}[ER perturbation bound]\label{lem:er_perturb}
+Under E3W-ER, the ER bonus at any node $s$ and action $a$ satisfies: for $t \geq 4$,
+\[
+\frac{c_2}{T_{s,a}(t)} \leq \frac{4c_2\log(2+t)}{t} \eqqcolon \frac{C_{\mathrm{ER}}'\log t}{t},
+\]
+with probability at least $1 - \hat{C}_{\mathrm{ER}}^{(4)}t\exp(-t/(\log t)^3)$.
+\end{lemma}
+
+\begin{proof}
+By Lemma~\ref{lem:visit_actual_ER}, when $N(s) = t$ is large enough, $N_t(s,a) \geq \frac{1}{2}\pi^*(a|s)t$ with the stated probability. Using the uniform mixing lower bound from the E3W component: $T_{s,a}(t) \geq t/(4\log(2+t))$, which gives $c_2/T_{s,a}(t) \leq 4c_2\log(2+t)/t$.
+\end{proof}
+
+\begin{lemma}[Lipschitz stability of regularized values]\label{lem:lipschitz_value}
+For any strongly convex regularizer $\Omega$:
+\begin{equation}\label{eq:value_perturb}
+|V_\Omega^{\mathrm{ER}}(s) - V_\Omega(s)| = |\Omega^*(Q^{\mathrm{ER}}_\Omega/\tau) - \Omega^*(Q_\Omega/\tau)| \leq \frac{c_2}{\tau \cdot \min_a T_{s,a}(t)}.
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+By the contraction property (Proposition~\ref{prop:LF}):
+\[
+|\Omega^*(Q^{\mathrm{ER}}/\tau) - \Omega^*(Q/\tau)| \leq \|Q^{\mathrm{ER}}/\tau - Q/\tau\|_\infty = \frac{1}{\tau}\max_a \frac{c_2}{T_{s,a}(t)} = \frac{c_2}{\tau \cdot \min_a T_{s,a}(t)}.\qedhere
+\]
+\end{proof}
+
+We now define the visit count event analogous to Lemma~5 of \citet{dam2021convex}:
+
+\begin{definition}[Visit count event]\label{def:event_Es}
+At node $s$, define $N^*(s,a) = \pi^*(a|s)N(s)$ and the event
+\[
+\mathcal{E}_s \coloneqq \left\{\forall a \in \mathcal{A}:\ |N(s,a) - N^*(s,a)| < \frac{N^*(s,a)}{2}\right\}.
+\]
+\end{definition}
+
+\begin{lemma}[ER-modified Lemma~5 --- Conditional value concentration]\label{lem:cond_value_ER}
+At any node $s$ of the tree, for $\epsilon > 0$:
+\[
+\Prob(|V_\Omega(s) - V^*_\Omega(s)| > \epsilon \mid \mathcal{E}_s) \leq C_{\mathrm{ER}}^{(5)}\exp\left\{-\frac{N(s)}{\hat{C}_{\mathrm{ER}}^{(5)}\sigma(\log(2+N(s)))^2}\right\}.
+\]
+\end{lemma}
+
+\begin{proof}
+We prove by induction on the depth $D$.
+
+\textbf{Base case ($D = 1$).} From the contraction property:
+\[
+|V_\Omega(s) - V^*_\Omega(s)| = \|\Omega^*(Q_\Omega(s,\cdot)) - \Omega^*(Q^*_\Omega(s,\cdot))\|_\infty \leq \gamma\|\hat{r} - r^*\|_\infty.
+\]
+By Lemma~\ref{lem:leaf_ER} with $\epsilon = 2\sigma\gamma/\log(2+N(s))$:
+\begin{align*}
+\Prob(|V_\Omega(s) - V^*_\Omega(s)| > \epsilon) &\leq \Prob(\gamma\|\hat{r} - r^*\|_\infty > \epsilon) \\
+&\leq 4|\mathcal{A}|\exp\left\{-\frac{N(s)}{2\sigma\gamma(\log(2+N(s)))^2}\right\} \\
+&= C_{\mathrm{ER}}^{(5)}\exp\left\{-\frac{N(s)}{\hat{C}_{\mathrm{ER}}^{(5)}(\log(2+N(s)))^2}\right\}.
+\end{align*}
+
+\textbf{Inductive step ($D-1 \to D$).} Assume the bound holds at depth $D-1$. Define $V_\Omega(s_a) = Q_\Omega(s,a)$ where $s_a$ is the state reached by taking action $a$ from $s$. At depth $D-1$:
+\[
+\Prob(|V_\Omega(s_a) - V^*_\Omega(s_a)| > \epsilon) \leq C_a\exp\left\{-\frac{N(s_a)}{\hat{C}_a(\log(2+N(s_a)))^2}\right\}.
+\]
+At depth $D$, by the contraction property:
+\[
+|V_\Omega(s) - V^*_\Omega(s)| \leq \gamma\|Q_\Omega(s,\cdot) - Q^*_\Omega(s,\cdot)\|_\infty = \gamma|Q_\Omega(s,a) - Q^*_\Omega(s,a)|,
+\]
+for some action $a$ achieving the $\infty$-norm. Therefore:
+\begin{align*}
+\Prob(|V_\Omega(s) - V^*_\Omega(s)| > \epsilon) &\leq \Prob(\gamma\|Q_\Omega(s,a) - Q^*_\Omega(s,a)\| > \epsilon) \\
+&\leq C_a\exp\left\{-\frac{N(s_a)}{\hat{C}_a(\log(2+N(s_a)))^2}\right\} \\
+&\leq C_a\exp\left\{-\frac{N(s_a)}{\hat{C}_a(\log(2+N(s)))^2}\right\}.
+\end{align*}
+From the induction hypothesis, $\lim_{t \to \infty}N(s_a) = \infty$. By Lemma~\ref{lem:visit_actual_ER}, when $N(s)$ is large enough, conditioned on $\mathcal{E}_s$: $N(s_a) \geq \frac{1}{2}\pi^*(a|s)N(s)$. Therefore we can find $C_{\mathrm{ER}}^{(5)}, \hat{C}_{\mathrm{ER}}^{(5)}$ such that
+\[
+\Prob(|V_\Omega(s) - V^*_\Omega(s)| > \epsilon \mid \mathcal{E}_s) \leq C_{\mathrm{ER}}^{(5)}\exp\left\{-\frac{N(s)}{\hat{C}_{\mathrm{ER}}^{(5)}(\log(2+N(s)))^2}\right\}. \qedhere
+\]
+\end{proof}
+
+\begin{theorem}[Exponential convergence of ER-augmented regularized MCTS]\label{thm:exp_conv_ER}
+At the root node $s$ with $N(s)$ visitations, for any strongly convex regularizer $\Omega$ and $\epsilon > 0$:
+\[
+\Prob(|V_\Omega^{\mathrm{ER}}(s) - V^*_\Omega(s)| > \epsilon) \leq C_{\mathrm{ER}}\exp\left\{-\frac{N(s)}{\hat{C}_{\mathrm{ER}}\sigma\log^2(2+N(s))}\right\}.
+\]
+\end{theorem}
+
+\begin{proof}
+We decompose:
+\[
+|V_\Omega^{\mathrm{ER}}(s) - V^*_\Omega(s)| \leq \underbrace{|V_\Omega^{\mathrm{ER}}(s) - V_\Omega(s)|}_{E_1} + \underbrace{|V_\Omega(s) - V^*_\Omega(s)|}_{E_2}.
+\]
+
+\emph{Bounding $E_1$.} By Lemmas~\ref{lem:lipschitz_value} and~\ref{lem:er_perturb}:
+\[
+E_1 \leq \frac{c_2}{\tau\cdot\min_a T_{s,a}(t)} \leq \frac{4c_2\log(2+N(s))}{\tau\cdot N(s)} = \frac{C_{\mathrm{ER}}'\log N(s)}{\tau N(s)}.
+\]
+This is $O(\log t/t)$. For any fixed $\epsilon > 0$, there exists $N_0(\epsilon)$ such that $E_1 < \epsilon/2$ for all $N(s) \geq N_0(\epsilon)$.
+
+\emph{Bounding $E_2$.} We verify the three ingredients of the inductive proof:
+
+\textbf{(i) Leaf concentration.} Lemma~\ref{lem:leaf_ER} holds unchanged since the ER bonus does not affect playout evaluation.
+
+\textbf{(ii) Visit count concentration.} Lemma~\ref{lem:visit_actual_ER} establishes $|N_t(s,a) - N^*_t(s,a)| = O(t/\log t)$ under E3W-ER, with the ER contribution absorbed as $O((\log t)^2) = o(t/\log t)$.
+
+\textbf{(iii) Inductive contraction.} At depth $D$: $|V_\Omega(s) - V^*_\Omega(s)| \leq \gamma\|Q_\Omega(s,\cdot) - Q^*_\Omega(s,\cdot)\|_\infty$. Since the backup uses $Q_\Omega$ (without ER --- the ER bonus is only injected at selection time), the contraction holds exactly with constant $\gamma$.
+
+By Lemma~\ref{lem:cond_value_ER}, $E_2$ satisfies the exponential bound with modified constants. Combining: for $N(s) \geq N_0(\epsilon)$,
+\[
+\Prob(|V_\Omega^{\mathrm{ER}}(s) - V^*_\Omega(s)| > \epsilon) \leq \Prob(E_2 > \epsilon/2) \leq C_{\mathrm{ER}}^{(5)}\exp\left\{-\frac{N(s)}{\hat{C}_{\mathrm{ER}}^{(5)}\sigma(\log(2+N(s)))^2}\right\}.
+\]
+For $N(s) < N_0(\epsilon)$, the bound holds trivially by choosing $C_{\mathrm{ER}}$ large enough.
+\end{proof}
+
+\subsection{Exponential Action Convergence}
+
+\begin{theorem}[Exponential action convergence of E3W-ER]\label{thm:action_ER}
+Let $a_t$ be the action returned by E3W-ER at step $t$. For $t$ large enough:
+\[
+\Prob(a_t \neq a^*) \leq C_{\mathrm{ER}}t\exp\left\{-\frac{t}{\hat{C}_{\mathrm{ER}}\sigma(\log t)^3}\right\}.
+\]
+\end{theorem}
+
+\begin{proof}
+Let $a^*$ be the action with the largest value estimate at root $s$. The probability that E3W-ER selects a sub-optimal arm is:
+\begin{align*}
+\Prob(a_t \neq a^*) &\leq \sum_a \Prob(V_\Omega^{\mathrm{ER}}(s_a) > V_\Omega^{\mathrm{ER}}(s_{a^*}) \mid \mathcal{E}_s) + \Prob(\mathcal{E}_s^c).
+\end{align*}
+For the first term, define $\Delta^{\mathrm{ER}} = V^*_\Omega(s_{a^*}) - V^*_\Omega(s_a)$. Then:
+\begin{align*}
+&\Prob(V_\Omega^{\mathrm{ER}}(s_a) > V_\Omega^{\mathrm{ER}}(s_{a^*}) \mid \mathcal{E}_s) \\
+&= \Prob\bigl((V_\Omega^{\mathrm{ER}}(s_a) - V^*_\Omega(s_a)) - (V_\Omega^{\mathrm{ER}}(s_{a^*}) - V^*_\Omega(s_{a^*})) \geq \Delta^{\mathrm{ER}} \mid \mathcal{E}_s\bigr).
+\end{align*}
+Now $V_\Omega^{\mathrm{ER}}(s_a) = V_\Omega(s_a) + O(\log t/t)$ by Lemma~\ref{lem:lipschitz_value}. For $t$ large enough that the ER perturbation is less than $\Delta^{\mathrm{ER}}/4$ at both $s_a$ and $s_{a^*}$, the effective gap is at least $\Delta^{\mathrm{ER}}/2$. With $\alpha + \beta = 1$, $\alpha, \beta > 0$:
+\begin{align*}
+&\Prob(V_\Omega^{\mathrm{ER}}(s_a) > V_\Omega^{\mathrm{ER}}(s_{a^*}) \mid \mathcal{E}_s) \\
+&\leq \Prob(|V_\Omega(s_a) - V^*_\Omega(s_a)| \geq \alpha\Delta^{\mathrm{ER}}/2 \mid \mathcal{E}_s) + \Prob(|V_\Omega(s_{a^*}) - V^*_\Omega(s_{a^*})| \geq \beta\Delta^{\mathrm{ER}}/2 \mid \mathcal{E}_s) \\
+&\leq C_a\exp\left\{-\frac{N(s_a)(\alpha\Delta^{\mathrm{ER}}/2)}{\hat{C}_a(\log(2+N(s)))^2}\right\} + C_{a^*}\exp\left\{-\frac{N(s_{a^*})(\beta\Delta^{\mathrm{ER}}/2)}{\hat{C}_{a^*}(\log(2+N(s)))^2}\right\},
+\end{align*}
+where we applied Lemma~\ref{lem:cond_value_ER}. Define $1/\hat{C} = \min\{(\alpha\Delta^{\mathrm{ER}}/2)/\hat{C}_a,\; (\beta\Delta^{\mathrm{ER}}/2)/\hat{C}_{a^*}\}$ and $C = \max\{C_a, C_{a^*}\}/|\mathcal{A}|$:
+\[
+\sum_a \Prob(V_\Omega^{\mathrm{ER}}(s_a) > V_\Omega^{\mathrm{ER}}(s_{a^*}) \mid \mathcal{E}_s) \leq C\exp\left\{-\frac{t}{\hat{C}\sigma(\log(2+t))^2}\right\}.
+\]
+For $\Prob(\mathcal{E}_s^c)$, by Lemma~\ref{lem:visit_actual_ER}: $\Prob(\mathcal{E}_s^c) \leq \hat{C}_{\mathrm{ER}}^{(4)}t\exp(-t/(\log t)^3)$. Therefore:
+\[
+\Prob(a_t \neq a^*) \leq C\exp\left\{-\frac{t}{\hat{C}\sigma(\log(2+t))^2}\right\} + \hat{C}_{\mathrm{ER}}^{(4)}t\exp\left(-\frac{t}{(\log t)^3}\right) = O\left(t\exp\left\{-\frac{t}{(\log t)^3}\right\}\right). \qedhere
+\]
+\end{proof}
+
+\subsection{Regret Analysis with ER Bonus}
+\label{sec:convex_regret}
+
+\begin{theorem}[Regret of E3W-ER]\label{thm:regret_ER}
+Consider E3W-ER applied to the tree. Let $D_{\Omega^*}(x,y) = \Omega^*(x) - \Omega^*(y) - \nabla\Omega^*(y)(x-y)$ be the Bregman divergence. The expected pseudo-regret $R_n = nV^* - \sum_{t=1}^n V_{i_t}$ satisfies:
+\begin{equation}\label{eq:regret_ER}
+\E[R_n] \leq -\tau\Omega(\hat{\pi}) + \sum_{t=1}^n D_{\Omega^*}(\hat{V}^t + V,\; \hat{V}^t) + O\left(\frac{n}{\log n}\right) + c_2 H_n,
+\end{equation}
+where $H_n = \sum_{t=1}^n \sum_a \frac{\pi_t^{\mathrm{ER}}(a|s)}{T_{s,a}(t)}$ is the cumulative ER exploration cost.
+\end{theorem}
+
+\begin{proof}
+Without loss of generality, assume $V_i \in [-1, 0]$ for all $i \in [1,|\mathcal{A}|]$. By definition of regret:
+\[
+\E[R_n] = nV^* - \sum_{t=1}^n \langle\hat{\pi}_t^{\mathrm{ER}}(\cdot), V(\cdot)\rangle \leq \hat{V}^1(0) - \sum_{t=1}^n \langle\hat{\pi}_t^{\mathrm{ER}}(\cdot), V(\cdot)\rangle \leq -\tau\Omega(\hat{\pi}) - \sum_{t=1}^n \langle\hat{\pi}_t^{\mathrm{ER}}(\cdot), V(\cdot)\rangle.
+\]
+Under E3W-ER, the policy acts on augmented Q-values. Decompose:
+\begin{align*}
+\langle\hat{\pi}_t^{\mathrm{ER}}(\cdot), V(\cdot)\rangle &= \langle\hat{\pi}_t^{\mathrm{ER}}(\cdot), Q^{\mathrm{ER}}(\cdot)\rangle - c_2\sum_a \frac{\hat{\pi}_t^{\mathrm{ER}}(a|s)}{T_{s,a}(t)} + \langle\hat{\pi}_t^{\mathrm{ER}}(\cdot), V(\cdot) - Q(\cdot)\rangle.
+\end{align*}
+For the first and third terms, by the definition of the E3W-ER tree policy:
+\begin{align*}
+-\sum_{t=1}^n \langle\hat{\pi}_t^{\mathrm{ER}}(\cdot), V(\cdot)\rangle &= -\sum_{t=1}^n \langle(1-\lambda_t)\nabla\Omega^*(\hat{V}^t(\cdot)), V(\cdot)\rangle - \sum_{t=1}^n \left\langle\frac{\lambda_t(\cdot)}{|\mathcal{A}|}, V(\cdot)\right\rangle + c_2 H_n \\
+&\leq -\sum_{t=1}^n \langle\nabla\Omega^*(\hat{V}^t(\cdot)), V(\cdot)\rangle + O\left(\frac{n}{\log n}\right) + c_2 H_n,
+\end{align*}
+where $\sum_{k=1}^n \lambda_k/|\mathcal{A}| = \sum_{k=1}^n \epsilon/\log(1+k) = O(n/\log n)$. Now, using the Bregman divergence:
+\begin{align*}
+-\sum_{t=1}^n \langle\nabla\Omega^*(\hat{V}^t), V\rangle &= \sum_{t=1}^n \bigl[\Omega^*(\hat{V}^t + V) - \Omega^*(\hat{V}^t) - \langle\nabla\Omega^*(\hat{V}^t), V\rangle\bigr] \\
+&\quad - \sum_{t=1}^n \bigl[\Omega^*(\hat{V}^t + V) - \Omega^*(\hat{V}^t)\bigr] \\
+&= \sum_{t=1}^n D_{\Omega^*}(\hat{V}^t + V, \hat{V}^t) - \sum_{t=1}^n \bigl[\Omega^*(\hat{V}^t + V) - \Omega^*(\hat{V}^t)\bigr] \\
+&\leq \sum_{t=1}^n D_{\Omega^*}(\hat{V}^t + V, \hat{V}^t) + n\|V\|_\infty \\
+&\leq \sum_{t=1}^n D_{\Omega^*}(\hat{V}^t + V, \hat{V}^t),
+\end{align*}
+where the penultimate step uses the contraction property, and the last step uses $V_i \leq 0$. The cumulative ER cost is bounded: since $\sum_{t=1}^n 1/T_{s,a}(t) \leq 1 + \log n$ for each action (by the harmonic series bound), $H_n \leq |\mathcal{A}|(1+\log n) = O(|\mathcal{A}|\log n)$.
+\end{proof}
+
+Specializing to each regularizer, using the Bregman divergence bounds from \citet{dam2021convex}:
+
+\begin{corollary}[MENTS-ER regret]\label{cor:ments_er_regret}
+For maximum entropy ($\Omega(\pi) = \sum_a \pi\log\pi$): $D_{\Omega^*}(\hat{V}^t + V, \hat{V}^t) \leq |\mathcal{A}|/\tau$. Therefore:
+\[
+\E[R_n] \leq \tau\log|\mathcal{A}| + n|\mathcal{A}|/\tau + O(n/\log n) + O(c_2|\mathcal{A}|\log n).
+\]
+\end{corollary}
+
+\begin{corollary}[RENTS-ER regret]\label{cor:rents_er_regret}
+For relative entropy ($\Omega(\pi_t) = D_{\mathrm{KL}}(\pi_t\|\pi_{t-1})$), with $m = \min_a \pi_{t-1}(a|s)$:
+\[
+\E[R_n] \leq \tau(\log|\mathcal{A}| - 1/m) + n|\mathcal{A}|/\tau + O(n/\log n) + O(c_2|\mathcal{A}|\log n).
+\]
+\end{corollary}
+
+\begin{corollary}[TENTS-ER regret]\label{cor:tents_er_regret}
+For Tsallis entropy ($\Omega(\pi) = \frac{1}{2}(\|\pi\|_2^2 - 1)$), by \citet{dam2021convex}: $D_{\Omega^*}(\hat{V}^t + V, \hat{V}^t) \leq |\mathcal{K}_{\mathrm{ER}}|/2$. Therefore:
+\[
+\E[R_n] \leq \tau(|\mathcal{A}|-1)/|\mathcal{A}| + n|\mathcal{K}_{\mathrm{ER}}|/2 + O(n/\log n) + O(c_2|\mathcal{A}|\log n),
+\]
+where $|\mathcal{K}_{\mathrm{ER}}|$ is the effective sparsity set size under ER-augmented Q-values.
+\end{corollary}
+
+\begin{remark}[TENTS-ER regret advantage]
+The TENTS-ER bound features $|\mathcal{K}_{\mathrm{ER}}|/2$ rather than $|\mathcal{A}|/\tau$, which becomes tighter for increasing $|\mathcal{A}|$. Since $|\mathcal{K}_{\mathrm{ER}}| \to |\mathcal{K}|$ as $t \to \infty$ and $|\mathcal{K}| \ll |\mathcal{A}|$ in practice, TENTS-ER preserves the advantage of Tsallis entropy in high-branching-factor problems. The ER cost $O(c_2|\mathcal{A}|\log n)$ is dominated by $O(n/\log n)$ and does not affect the leading-order regret.
+\end{remark}
+
+\subsection{Error Analysis with ER Bonus}
+
+\begin{theorem}[Error of ER-augmented regularized value]\label{thm:error_ER}
+For any $\delta > 0$ and strongly convex $\Omega$, define $\Psi_{\mathrm{ER}} = \sqrt{\hat{C}_{\mathrm{ER}}\sigma^2\log(C_{\mathrm{ER}}/\delta)/(2N(s))}$. The error $\varepsilon_\Omega^{\mathrm{ER}} = V_\Omega^{\mathrm{ER}}(s) - V^*(s)$ satisfies, with probability at least $1-\delta$:
+\[
+-\Psi_{\mathrm{ER}} - \frac{\tau(U_\Omega - L_\Omega^{\min})}{1-\gamma} \leq \varepsilon_\Omega^{\mathrm{ER}} \leq \Psi_{\mathrm{ER}} + \frac{c_2}{\tau\cdot\min_a T_{s,a}}.
+\]
+\end{theorem}
+
+\begin{proof}
+From Theorem~\ref{thm:exp_conv_ER}, define $\delta = C_{\mathrm{ER}}\exp\{-2N(s)\epsilon^2/(\hat{C}_{\mathrm{ER}}\sigma^2)\}$, so $\epsilon = \Psi_{\mathrm{ER}}$. For any $\delta > 0$, with probability at least $1-\delta$:
+\[
+|V_\Omega(s) - V^*_\Omega(s)| \leq \Psi_{\mathrm{ER}}.
+\]
+This gives: $-\Psi_{\mathrm{ER}} \leq V_\Omega(s) - V^*_\Omega(s) \leq \Psi_{\mathrm{ER}}$, hence
+\[
+-\Psi_{\mathrm{ER}} + V^*_\Omega(s) \leq V_\Omega(s) \leq \Psi_{\mathrm{ER}} + V^*_\Omega(s).
+\]
+By the boundedness of regularized MDPs \citep[Theorem~2]{geist2019regularized}: $V^*(s) - \frac{\tau(U_\Omega - L_\Omega^{\min})}{1-\gamma} \leq V^*_\Omega(s) \leq V^*(s)$. Therefore:
+\[
+-\Psi_{\mathrm{ER}} + V^*(s) - \frac{\tau(U_\Omega - L_\Omega^{\min})}{1-\gamma} \leq V_\Omega(s) \leq \Psi_{\mathrm{ER}} + V^*(s).
+\]
+Adding the ER perturbation from Lemma~\ref{lem:lipschitz_value}: $V_\Omega^{\mathrm{ER}}(s) = V_\Omega(s) + c_2/(\tau\min_a T_{s,a})$, so:
+\[
+-\Psi_{\mathrm{ER}} - \frac{\tau(U_\Omega - L_\Omega^{\min})}{1-\gamma} \leq V_\Omega^{\mathrm{ER}}(s) - V^*(s) \leq \Psi_{\mathrm{ER}} + \frac{c_2}{\tau\cdot\min_a T_{s,a}},
+\]
+where $c_2/(\tau\min_a T_{s,a}) = O(\log N(s)/N(s)) \to 0$ asymptotically by Lemma~\ref{lem:er_perturb}.
+\end{proof}
+
+Specializing using the entropy bounds from \citet{dam2021convex,lee2018sparse}: for maximum entropy, $-\log|\mathcal{A}| \leq \Omega(\pi) \leq 0$; for relative entropy with $m = \min_a\pi_{t-1}(a|s)$, $0 \leq \Omega(\pi) \leq -\log|\mathcal{A}| + \log(1/m)$; for Tsallis entropy, $-(|\mathcal{A}|-1)/(2|\mathcal{A}|) \leq \Omega(\pi) \leq 0$.
+
+\begin{corollary}[MENTS-ER error]
+$-\Psi_{\mathrm{ER}} - \tau\log|\mathcal{A}|/(1-\gamma) \leq \varepsilon_\Omega^{\mathrm{ER}} \leq \Psi_{\mathrm{ER}} + O(\log t/t)$.
+\end{corollary}
+
+\begin{corollary}[RENTS-ER error]
+$-\Psi_{\mathrm{ER}} - \tau(\log|\mathcal{A}| - \log(1/m))/(1-\gamma) \leq \varepsilon_\Omega^{\mathrm{ER}} \leq \Psi_{\mathrm{ER}} + O(\log t/t)$.
+\end{corollary}
+
+\begin{corollary}[TENTS-ER error]
+$-\Psi_{\mathrm{ER}} - (|\mathcal{A}|-1)\tau/(2|\mathcal{A}|(1-\gamma)) \leq \varepsilon_\Omega^{\mathrm{ER}} \leq \Psi_{\mathrm{ER}} + O(\log t/t)$.
+\end{corollary}
+
+\begin{remark}[TENTS-ER retains tightest error bounds]
+As in the non-ER case, TENTS-ER enjoys the smallest error among the three regularizers when $|\mathcal{A}|$ is large, because $(|\mathcal{A}|-1)/(2|\mathcal{A}|) < \log|\mathcal{A}|$ for all $|\mathcal{A}| \geq 2$. The ER perturbation adds only $O(\log t/t)$ to the upper bound, negligible compared to $O(1/\sqrt{N(s)})$.
+\end{remark}
+
+\subsection{Summary of All MCTS-ER Variants}
+
+\begin{table}[ht]
+\centering
+\caption{Convergence properties for all MCTS-ER variants. All ER-augmented variants preserve the rates of their base algorithms.}
+\label{tab:summary}
+\small
+\begin{tabular}{lcccc}
+\toprule
+Algorithm & Conv.\ Rate & Regret (leading) & Error (lower) & Sparsity \\
+\midrule
+Power-UCT-ER & $O(n^{-1/2})$ & --- & $O(n^{-1/2})$ & No \\
+MENTS-ER & $\exp(-t/(\log t)^3)$ & $n|\mathcal{A}|/\tau$ & $\tau\log|\mathcal{A}|/(1{-}\gamma)$ & No \\
+RENTS-ER & $\exp(-t/(\log t)^3)$ & $n|\mathcal{A}|/\tau$ & $\tau(\log|\mathcal{A}|{-}\log m)/(1{-}\gamma)$ & No \\
+TENTS-ER & $\exp(-t/(\log t)^3)$ & $n|\mathcal{K}_{\mathrm{ER}}|/2$ & $\tau(|\mathcal{A}|{-}1)/(2|\mathcal{A}|(1{-}\gamma))$ & \textbf{Yes} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%% ============================================================
+\section{Discussion and Extensions}
+\label{sec:discussion}
+%% ============================================================
+
+\subsection{When Does the ER Bonus Help?}
+
+The ER bonus $C_2/T_{s,a}$ provides the most benefit in the \emph{sparse planning regime} where the number of simulations $n$ is small relative to the tree size.
+In this regime, many edges have small visit counts, and the ER bonus provides:
+
+\begin{enumerate}
+\item \textbf{Path-level uncertainty awareness.}
+A node deep in a well-explored branch may have lower total bonus than a shallow node in a rarely-visited branch.
+The ER contribution captures this because $\Reff(\mathrm{root}, s) = \sum_{e \in \mathrm{path}} 1/N(e)$ accumulates uncertainty along the entire trajectory.
+
+\item \textbf{Bottleneck detection.}
+A single weakly-visited edge in an otherwise well-explored trajectory creates a large ER contribution, redirecting exploration to reinforce that bottleneck.
+Standard UCB bonuses at non-bottleneck nodes would not detect this.
+
+\item \textbf{Complementarity with power mean.}
+The power mean backup with $p > 1$ provides an optimistic value estimate.
+The ER bonus provides an optimistic exploration bonus based on structural uncertainty.
+Together, they address both value uncertainty and trajectory uncertainty.
+\end{enumerate}
+
+\subsection{Extension to State Graphs with Transpositions}
+
+When the underlying MDP has state transpositions (multiple action sequences reaching the same state), the search tree does not capture the full graph structure.
+If we maintain a state graph $G$ alongside the search tree, recording all discovered transitions including transpositions, then $\Reff(\mathrm{root}, s; G)$ becomes a non-trivial spectral quantity that accounts for parallel paths.
+
+However, the convergence analysis breaks down in this setting because the ER bonus becomes a \emph{global} quantity that depends on the entire graph structure.
+Specifically:
+\begin{itemize}
+    \item The local decomposition (Remark~\ref{rmk:local}) no longer holds.
+    \item Adding a transposition edge changes $\Reff$ for all nodes simultaneously.
+    \item The node-by-node bandit decomposition used in the inductive proof (Theorem~\ref{thm:main}) is invalidated.
+\end{itemize}
+
+A potential approach for the transposition case is to use a \emph{potential function} argument based on the total effective resistance $\Phi_n = \sum_s \Reff(\mathrm{root}, s; G_n)$, which is monotonically decreasing by Rayleigh monotonicity.
+We leave this as an open problem for future work.
+
+\subsection{Connection to Power Mean Resistance}
+
+The effective resistance has an intriguing connection to the power mean parameter $p$.
+For parallel resistors, the combined resistance is the harmonic mean ($p = -1$ power mean) of individual resistances.
+This suggests a generalized notion of \emph{power mean resistance}:
+\[
+R^{(q)}_{\mathrm{eff}}(s, t) = \left(\sum_{\text{paths } \pi: s \to t} R(\pi)^q\right)^{1/q},
+\]
+where $R(\pi)$ is the resistance of path $\pi$.
+The case $q = -1$ recovers the standard effective resistance (harmonic mean over paths), $q = -\infty$ gives the shortest path, and $q = +\infty$ gives the longest path.
+
+Combining this with the power mean backup parameter $p$ of MCTS-ER creates a two-parameter family that controls both \emph{value aggregation} (via $p$) and \emph{path aggregation} (via $q$), offering a rich framework for risk-sensitive planning.
+
+%% ============================================================
+\section{Conclusion}
+%% ============================================================
+
+We have introduced MCTS-ER, a family of MCTS algorithms augmented with an effective resistance bonus that captures trajectory-level uncertainty.
+
+In Part~I, we showed that augmenting Stochastic-Power-UCT with an additive ER bonus preserves the $O(n^{-1/2})$ polynomial convergence rate, with the ER bonus asymptotically dominated by the polynomial exploration term.
+
+In Part~II, we showed that augmenting convex-regularized MCTS (MENTS, RENTS, TENTS) with ER-augmented Q-values preserves the exponential convergence rate $O(t\exp(-t/(\log t)^3))$.
+We derived regret bounds and error analysis for each regularizer, showing that the ER cost appears only as lower-order $O(c_2 \log n)$ terms.
+The most compelling combination is TENTS-ER, where the ER bonus dynamically modulates the Tsallis sparsity set $\mathcal{K}$, providing an adaptive exploration schedule --- broad early, sparse late --- that neither Tsallis entropy nor ER achieves alone.
+
+Across both frameworks, the ER bonus comes ``for free'' in terms of asymptotic rates while providing structurally motivated finite-time improvements through path-level uncertainty awareness.
+The extension to state graphs with transpositions, where effective resistance becomes a non-trivial spectral quantity with parallel-path effects, remains an important open direction.
+
+%% ============================================================
+%% References (manual for draft)
+%% ============================================================
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

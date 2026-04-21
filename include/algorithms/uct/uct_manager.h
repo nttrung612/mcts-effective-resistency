@@ -14,18 +14,21 @@ namespace thts {
         static const int heuristic_psuedo_trials_default=0;
         static const bool recommend_most_visited_default=true;
         static constexpr double epsilon_exploration_default=0.0;
+        static constexpr double er_c2_default=0.0;
 
         double bias;
         int heuristic_psuedo_trials;
         bool recommend_most_visited;
         double epsilon_exploration;
+        double er_c2;
 
         UctManagerArgs(std::shared_ptr<ThtsEnv> thts_env) :
             ThtsManagerArgs(thts_env),
             bias(bias_default),
             heuristic_psuedo_trials(heuristic_psuedo_trials_default),
             recommend_most_visited(recommend_most_visited_default),
-            epsilon_exploration(epsilon_exploration_default) {}
+            epsilon_exploration(epsilon_exploration_default),
+            er_c2(er_c2_default) {}
 
         virtual ~UctManagerArgs() = default;
     };
@@ -48,6 +51,8 @@ namespace thts {
      *          Defines the proportion of time to be spent exploring uniformly randomly (i.e. select a random action 
      *          rather than using the UCB formula). Default set to zero and to purely use the primary action selection. 
      *          This value should be in the range [0,1].
+    *      er_c2:
+    *          The coefficient for the effective-resistance bonus term c2 / N(s,a). A value of zero disables it.
      */
     class UctManager : public ThtsManager {
         public:
@@ -58,12 +63,14 @@ namespace thts {
             int heuristic_psuedo_trials;
             bool recommend_most_visited;
             double epsilon_exploration;
+            double er_c2;
 
             UctManager(const UctManagerArgs& args) :
                 ThtsManager(args),
                 bias(args.bias),
                 heuristic_psuedo_trials(args.heuristic_psuedo_trials),
                 recommend_most_visited(args.recommend_most_visited),
-                epsilon_exploration(args.epsilon_exploration) {};
+                epsilon_exploration(args.epsilon_exploration),
+                er_c2(args.er_c2) {};
     };
 }
