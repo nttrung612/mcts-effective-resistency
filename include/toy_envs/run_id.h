@@ -12,6 +12,7 @@
 static const std::string DCHAIN_ENV_ID = "dchain_env";
 static const std::string FL_ENV_ID = "frozen_lake_env";
 static const std::string SAILING_ENV_ID = "sailing_env";
+static const std::string TAXI_ENV_ID = "taxi_env";
 
 // chain env instance ids
 static const std::string D_10_ID = "10-1.0";
@@ -33,6 +34,8 @@ static const std::string FL_8x16_TEST = "FL_8x16_test";
 // sailing env instance ids
 static const std::string S_6_ID = "6";
 static const std::string S_6_TEST_ID = "6_test";
+static const std::string TX_5_ID = "5";
+static const std::string TX_5_TEST_ID = "5_test";
 // static const std::string S_5_ID = "5";
 // static const std::string S_7_ID = "7";
 // static const std::string S_10_ID = "10";
@@ -67,6 +70,10 @@ static const std::string FL16_050_TEST = "050_fl16_test";
 static const std::string S6_091_HPS = "091_s6_hps";
 static const std::string S6_092_TEST = "092_s6_test";
 static const std::string S6_093_ER_TUNE = "093_s6_er_tune";
+
+// expr ids - taxi
+static const std::string TX5_101_HPS = "101_tx5_hps";
+static const std::string TX5_102_TEST = "102_tx5_test";
 
 // expr ids - app gridworld
 static const std::string FL8_053_SENS = "053_fl8_1_0";

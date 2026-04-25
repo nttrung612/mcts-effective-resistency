@@ -6,6 +6,7 @@
 #include "toy_envs/frozen_lake_env.h"
 #include "toy_envs/d_chain_env.h"
 #include "toy_envs/sailing_env.h"
+#include "toy_envs/taxi_env.h"
 
 // includes
 #include "thts_manager.h"
@@ -196,4 +197,43 @@ TEST(ToyEnvs_TestSailing, sanity_check)
         cout << state << "," << action << "," << rew << endl;
         state = env.sample_transition_distribution(state, action, rand_manager);
     }
+}
+
+TEST(ToyEnvs_TestTaxi, sanity_check)
+{
+    TaxiEnv env(5, 5);
+    RandManager rand_manager;
+    auto south = make_shared<const IntAction>(TAXI_SOUTH);
+    auto east = make_shared<const IntAction>(TAXI_EAST);
+    auto pickup = make_shared<const IntAction>(TAXI_PICKUP);
+    auto dropoff = make_shared<const IntAction>(TAXI_DROPOFF);
+
+    shared_ptr<const Int3TupleState> state = env.get_initial_state();
+    EXPECT_FALSE(env.is_sink_state(state));
+    EXPECT_EQ(env.get_valid_actions(state)->size(), 6u);
+
+    // Move from R(0,0) to Y(4,0)
+    for (int i=0; i<4; i++) {
+        EXPECT_EQ(env.get_reward(state, south), -1.0);
+        state = env.sample_transition_distribution(state, south, rand_manager);
+    }
+
+    // Pickup at Y should be legal.
+    EXPECT_EQ(env.get_reward(state, pickup), -1.0);
+    state = env.sample_transition_distribution(state, pickup, rand_manager);
+
+    // Move to G(0,4): north x4 then east x4
+    auto north = make_shared<const IntAction>(TAXI_NORTH);
+    for (int i=0; i<4; i++) {
+        EXPECT_EQ(env.get_reward(state, north), -1.0);
+        state = env.sample_transition_distribution(state, north, rand_manager);
+    }
+    for (int i=0; i<4; i++) {
+        EXPECT_EQ(env.get_reward(state, east), -1.0);
+        state = env.sample_transition_distribution(state, east, rand_manager);
+    }
+
+    EXPECT_EQ(env.get_reward(state, dropoff), 20.0);
+    state = env.sample_transition_distribution(state, dropoff, rand_manager);
+    EXPECT_TRUE(env.is_sink_state(state));
 }

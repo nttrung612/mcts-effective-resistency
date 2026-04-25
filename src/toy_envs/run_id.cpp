@@ -3,6 +3,7 @@
 #include "toy_envs/d_chain_env.h"
 #include "toy_envs/frozen_lake_env.h"
 #include "toy_envs/sailing_env.h"
+#include "toy_envs/taxi_env.h"
 
 #include "algorithms/uct/uct_manager.h"
 #include "algorithms/uct/er_uct_decision_node.h"
@@ -121,6 +122,14 @@ namespace thts {
                 return make_shared<SailingEnv>(6, 6);
             } else if (env_instance_id == S_6_TEST_ID) {
                 return make_shared<SailingEnv>(6, 6, SE);
+            } else {
+                throw runtime_error("Not implemented yet");
+            }
+        }
+
+        if (env_id == TAXI_ENV_ID) {
+            if (env_instance_id == TX_5_ID || env_instance_id == TX_5_TEST_ID) {
+                return make_shared<TaxiEnv>(5, 5);
             } else {
                 throw runtime_error("Not implemented yet");
             }
@@ -1874,6 +1883,156 @@ namespace thts {
                         }
                     }
                 }
+            }
+
+            return run_ids;
+        }
+
+        // expr id: TX5_101_HPS
+        // Hyperparameter search on Taxi 5x5.
+        if (expr_id == TX5_101_HPS) {
+            string env_id = TAXI_ENV_ID;
+            string env_instance_id = TX_5_ID;
+            int num_trials = 200000;
+            int max_trial_length = 200;
+            int trials_log_delta = 250;
+            int mc_eval_trials_delta = 250;
+            int rollouts_per_mc_eval = 100;
+            int num_repeats = 5;
+            int num_threads = 16;
+            int eval_threads = 16;
+
+            vector<string> alg_ids = {ALG_ID_UCT, ALG_ID_ER_UCT, ALG_ID_FIXED_DEPTH_UCT, ALG_ID_ER_FIXED_DEPTH_UCT, ALG_ID_PUCT};
+            vector<double> uct_biases = {UctManagerArgs::USE_AUTO_BIAS, 0.1, 1.0, 10.0};
+            for (string alg_id : alg_ids) {
+                for (double bias : uct_biases) {
+                    unordered_map<string,double> alg_params = {{PARAMS_ID_UCT_BIAS, bias}};
+                    if (alg_id == ALG_ID_ER_UCT || alg_id == ALG_ID_ER_FIXED_DEPTH_UCT) {
+                        alg_params[PARAMS_ID_UCT_ER_C2] = 1.0;
+                        alg_params[PARAMS_ID_UCT_POWER_MEAN_P] = 2.0;
+                    }
+                    run_ids->push_back(RunID(
+                        env_id,
+                        env_instance_id,
+                        expr_id,
+                        alg_id,
+                        alg_params,
+                        num_trials,
+                        max_trial_length,
+                        trials_log_delta,
+                        mc_eval_trials_delta,
+                        rollouts_per_mc_eval,
+                        num_repeats,
+                        num_threads,
+                        eval_threads));
+                }
+            }
+
+            alg_ids = {ALG_ID_MENTS, ALG_ID_ER_MENTS, ALG_ID_RENTS, ALG_ID_ER_RENTS, ALG_ID_TENTS, ALG_ID_ER_TENTS, ALG_ID_EST, ALG_ID_DENTS, ALG_ID_DBMENTS};
+            vector<double> temps = {1.0, 0.1, 0.01, 0.001};
+            vector<double> epss = {2.0, 1.0, 0.3, 0.1};
+            for (string alg_id : alg_ids) {
+                for (double temp : temps) {
+                    for (double eps : epss) {
+                        unordered_map<string,double> alg_params = {
+                            {PARAMS_ID_MENTS_TEMP, temp},
+                            {PARAMS_ID_MENTS_EPSILON, eps}
+                        };
+                        if (alg_id == ALG_ID_DENTS) {
+                            alg_params[PARAMS_ID_DENTS_TEMP] = 1.0;
+                        }
+                        if (alg_id == ALG_ID_ER_MENTS || alg_id == ALG_ID_ER_RENTS || alg_id == ALG_ID_ER_TENTS) {
+                            alg_params[PARAMS_ID_UCT_ER_C2] = 1.0;
+                            alg_params[PARAMS_ID_MENTS_POWER_MEAN_P] = 2.0;
+                        }
+
+                        run_ids->push_back(RunID(
+                            env_id,
+                            env_instance_id,
+                            expr_id,
+                            alg_id,
+                            alg_params,
+                            num_trials,
+                            max_trial_length,
+                            trials_log_delta,
+                            mc_eval_trials_delta,
+                            rollouts_per_mc_eval,
+                            num_repeats,
+                            num_threads,
+                            eval_threads));
+                    }
+                }
+            }
+
+            return run_ids;
+        }
+
+        // expr id: TX5_102_TEST
+        // Taxi 5x5 test run with selected baseline params.
+        if (expr_id == TX5_102_TEST) {
+            string env_id = TAXI_ENV_ID;
+            string env_instance_id = TX_5_TEST_ID;
+            int num_trials = 250000;
+            int max_trial_length = 200;
+            int trials_log_delta = 250;
+            int mc_eval_trials_delta = 250;
+            int rollouts_per_mc_eval = 200;
+            int num_repeats = 10;
+            int num_threads = 16;
+            int eval_threads = 16;
+
+            vector<string> alg_ids = {ALG_ID_UCT, ALG_ID_ER_UCT, ALG_ID_FIXED_DEPTH_UCT, ALG_ID_ER_FIXED_DEPTH_UCT, ALG_ID_PUCT};
+            for (string alg_id : alg_ids) {
+                unordered_map<string,double> alg_params = {{PARAMS_ID_UCT_BIAS, UctManagerArgs::USE_AUTO_BIAS}};
+                if (alg_id == ALG_ID_ER_UCT || alg_id == ALG_ID_ER_FIXED_DEPTH_UCT) {
+                    alg_params[PARAMS_ID_UCT_ER_C2] = 1.0;
+                    alg_params[PARAMS_ID_UCT_POWER_MEAN_P] = 2.0;
+                }
+                run_ids->push_back(RunID(
+                    env_id,
+                    env_instance_id,
+                    expr_id,
+                    alg_id,
+                    alg_params,
+                    num_trials,
+                    max_trial_length,
+                    trials_log_delta,
+                    mc_eval_trials_delta,
+                    rollouts_per_mc_eval,
+                    num_repeats,
+                    num_threads,
+                    eval_threads));
+            }
+
+            alg_ids = {ALG_ID_MENTS, ALG_ID_ER_MENTS, ALG_ID_RENTS, ALG_ID_ER_RENTS, ALG_ID_TENTS, ALG_ID_ER_TENTS, ALG_ID_EST, ALG_ID_DENTS, ALG_ID_DBMENTS};
+            for (string alg_id : alg_ids) {
+                double temp = 0.01;
+                double eps = (alg_id == ALG_ID_RENTS || alg_id == ALG_ID_ER_RENTS || alg_id == ALG_ID_EST) ? 2.0 : 1.0;
+                unordered_map<string,double> alg_params = {
+                    {PARAMS_ID_MENTS_TEMP, temp},
+                    {PARAMS_ID_MENTS_EPSILON, eps}
+                };
+                if (alg_id == ALG_ID_DENTS) {
+                    alg_params[PARAMS_ID_DENTS_TEMP] = 1.0;
+                }
+                if (alg_id == ALG_ID_ER_MENTS || alg_id == ALG_ID_ER_RENTS || alg_id == ALG_ID_ER_TENTS) {
+                    alg_params[PARAMS_ID_UCT_ER_C2] = 1.0;
+                    alg_params[PARAMS_ID_MENTS_POWER_MEAN_P] = 2.0;
+                }
+                run_ids->push_back(RunID(
+                    env_id,
+                    env_instance_id,
+                    expr_id,
+                    alg_id,
+                    alg_params,
+                    num_trials,
+                    max_trial_length,
+                    trials_log_delta,
+                    mc_eval_trials_delta,
+                    rollouts_per_mc_eval,
+                    num_repeats,
+                    num_threads,
+                    eval_threads));
             }
 
             return run_ids;
