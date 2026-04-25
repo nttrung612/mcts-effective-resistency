@@ -66,6 +66,7 @@ static const std::string FL16_050_TEST = "050_fl16_test";
 
 static const std::string S6_091_HPS = "091_s6_hps";
 static const std::string S6_092_TEST = "092_s6_test";
+static const std::string S6_093_ER_TUNE = "093_s6_er_tune";
 
 // expr ids - app gridworld
 static const std::string FL8_053_SENS = "053_fl8_1_0";
