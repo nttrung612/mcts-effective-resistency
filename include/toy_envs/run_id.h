@@ -74,6 +74,7 @@ static const std::string S6_093_ER_TUNE = "093_s6_er_tune";
 // expr ids - taxi
 static const std::string TX5_101_HPS = "101_tx5_hps";
 static const std::string TX5_102_TEST = "102_tx5_test";
+static const std::string TX5_103_ER_TUNE = "103_tx5_er_tune";
 
 // expr ids - app gridworld
 static const std::string FL8_053_SENS = "053_fl8_1_0";
