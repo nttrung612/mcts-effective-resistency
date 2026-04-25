@@ -1308,8 +1308,7 @@ namespace thts {
         }
 
         // expr id: FL12_062_REQUESTED_ALGS
-        // Frozen Lake preset for: ments, er-ments, tents, er-tents, rents, er-rents,
-        // fixed-depth-mcts, uct, and bts (EST in the codebase / plot labels).
+        // Frozen Lake preset for all supported algorithms.
         if (expr_id == FL12_062_REQUESTED_ALGS) {
             string env_id = FL_ENV_ID;
             string env_instance_id = FL_8x12_TEST;
@@ -1324,23 +1323,37 @@ namespace thts {
 
             vector<string> alg_ids = {
                 ALG_ID_UCT,
+                ALG_ID_ER_UCT,
                 ALG_ID_FIXED_DEPTH_UCT,
+                ALG_ID_ER_FIXED_DEPTH_UCT,
+                ALG_ID_PUCT,
                 ALG_ID_MENTS,
                 ALG_ID_ER_MENTS,
                 ALG_ID_RENTS,
                 ALG_ID_ER_RENTS,
                 ALG_ID_TENTS,
                 ALG_ID_ER_TENTS,
+                ALG_ID_DENTS,
+                ALG_ID_DBMENTS,
                 ALG_ID_EST
             };
             for (string alg_id : alg_ids) {
                 unordered_map<string,double> alg_params;
 
-                if (alg_id == ALG_ID_UCT || alg_id == ALG_ID_FIXED_DEPTH_UCT) {
+                if (alg_id == ALG_ID_UCT || alg_id == ALG_ID_ER_UCT || alg_id == ALG_ID_FIXED_DEPTH_UCT || alg_id == ALG_ID_ER_FIXED_DEPTH_UCT || alg_id == ALG_ID_PUCT) {
                     alg_params[PARAMS_ID_UCT_BIAS] = UctManagerArgs::USE_AUTO_BIAS;
+                    if (alg_id == ALG_ID_ER_UCT || alg_id == ALG_ID_ER_FIXED_DEPTH_UCT) {
+                        alg_params[PARAMS_ID_UCT_ER_C2] = 1.0;
+                    }
                 } else if (alg_id == ALG_ID_EST) {
                     alg_params[PARAMS_ID_MENTS_TEMP] = 0.1;
                     alg_params[PARAMS_ID_MENTS_EPSILON] = 2.0;
+                } else if (alg_id == ALG_ID_DENTS || alg_id == ALG_ID_DBMENTS) {
+                    alg_params[PARAMS_ID_MENTS_TEMP] = 0.1;
+                    alg_params[PARAMS_ID_MENTS_EPSILON] = 1.0;
+                    if (alg_id == ALG_ID_DENTS) {
+                        alg_params[PARAMS_ID_DENTS_TEMP] = 1.0;
+                    }
                 } else {
                     double temp = 0.001;
                     double eps = 1.0;

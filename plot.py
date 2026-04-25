@@ -34,10 +34,16 @@ def make_plot_df(
     y_axis_range=None,
     alpha=1.0,
     use_legend=True,
-    font_scale=1.2):
+    font_scale=1.2,
+    figsize=None,
+    linewidth=2.5,
+    dpi=200):
     """General helper for plotting in our style."""
 
-    plt.figure()
+    if figsize is None:
+        plt.figure()
+    else:
+        plt.figure(figsize=figsize)
     sns.set(style="darkgrid")
 
     # params = {
@@ -74,6 +80,7 @@ def make_plot_df(
         markers=markers,
         markevery=markevery,
         markersize=14,
+        linewidth=linewidth,
         mec=None,
         alpha=alpha)
 
@@ -93,8 +100,10 @@ def make_plot_df(
     if not use_legend:
         plt.gca().get_legend().remove()
 
+    plt.tight_layout()
+
     if filename is not None:
-        plt.savefig(filename)
+        plt.savefig(filename, dpi=dpi, bbox_inches="tight")
         plt.close()
 
 
@@ -180,7 +189,11 @@ def make_plot(
     use_legend=True,
     hue_per_algo=True,
     alpha=1.0,
-    num_trials_scale=1):
+    num_trials_scale=1,
+    figsize=None,
+    font_scale=1.2,
+    linewidth=2.5,
+    dpi=200):
     """Read in data, preprocess, and then call make plot"""
 
 
@@ -311,7 +324,11 @@ def make_plot(
         markers=markers,
         markevery=markevery,
         use_legend=use_legend,
-        alpha=alpha)
+        alpha=alpha,
+        font_scale=font_scale,
+        figsize=figsize,
+        linewidth=linewidth,
+        dpi=dpi)
     
     if not sep_eps_plots:
         return
@@ -338,7 +355,11 @@ def make_plot(
             markers=markers,
             markevery=markevery,
             use_legend=use_legend,
-            alpha=alpha)
+            alpha=alpha,
+            font_scale=font_scale,
+            figsize=figsize,
+            linewidth=linewidth,
+            dpi=dpi)
 
     
 def negative_log_transform(x):
@@ -1105,7 +1126,26 @@ if __name__ == "__main__":
             filenames=filenames,
             plot_filename="plots/052_01_fl12_test_01.png",
             hue_key="pretty_alg_id",
-            num_trials_truncate=1000000)
+            num_trials_truncate=1000000,
+            figsize=(16, 9),
+            font_scale=1.4,
+            linewidth=3.0,
+            dpi=250)
+
+    if "052_01_fl12_test_zoom" in sys.argv or "all" in sys.argv or expr_id in sys.argv:
+        filenames = glob.glob("results/frozen_lake_env/FL_8x12_test/052_fl12_test/*/eval_*.csv")
+        make_plot(
+            filenames=filenames,
+            plot_filename="plots/052_01_fl12_test_zoom.png",
+            hue_key="pretty_alg_id",
+            num_trials_truncate=1000000,
+            y_axis_range=[0.62, 0.84],
+            add_markers=True,
+            markevery=1000,
+            figsize=(16, 9),
+            font_scale=1.4,
+            linewidth=3.0,
+            dpi=250)
         
     if "052_01_fl12_test_02" in sys.argv or "all" in sys.argv or expr_id in sys.argv:
         filenames = glob.glob("results/frozen_lake_env/FL_8x12_test/052_fl12_test/uct/eval_*.csv")
@@ -1116,7 +1156,11 @@ if __name__ == "__main__":
             filenames=filenames,
             plot_filename="plots/052_01_fl12_test_02.png",
             hue_key="pretty_alg_id",
-            num_trials_truncate=100000)
+            num_trials_truncate=100000,
+            figsize=(16, 9),
+            font_scale=1.4,
+            linewidth=3.0,
+            dpi=250)
         
 
 
