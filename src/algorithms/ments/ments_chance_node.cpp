@@ -1,10 +1,10 @@
 #include "algorithms/ments/ments_chance_node.h"
+#include "algorithms/common/power_mean.h"
 
 #include "helper_templates.h"
 
 #include <cmath>
 #include <limits>
-#include <stdexcept>
 
 using namespace std;
 
@@ -137,11 +137,7 @@ namespace thts {
             if (fabs(p - 1.0) < 1e-12) {
                 weighted_sum += child_weight * child.soft_value;
             } else {
-                if (child.soft_value < 0.0) {
-                    unlock_all_children();
-                    throw runtime_error("Power mean backup requires non-negative child values when p != 1.");
-                }
-                weighted_sum += child_weight * pow(child.soft_value, p);
+                weighted_sum += child_weight * helper::power_mean_transform(child.soft_value, p);
             }
         }
         unlock_all_children();
@@ -151,7 +147,7 @@ namespace thts {
             if (fabs(p - 1.0) < 1e-12) {
                 backup_value = weighted_sum / total_weight;
             } else {
-                backup_value = pow(weighted_sum / total_weight, 1.0 / p);
+                backup_value = helper::power_mean_inverse(weighted_sum / total_weight, p);
             }
         }
 
