@@ -60,6 +60,7 @@ static const std::string FL12_051A_HPS = "051a_fl12_hps";
 static const std::string FL12_052_TEST = "052_fl12_test";
 static const std::string FL12_060_ER_UCT_SMOKE = "060_fl12_er_uct_smoke";
 static const std::string FL12_061_ER_MENTS_SMOKE = "061_fl12_er_ments_smoke";
+static const std::string FL12_062_REQUESTED_ALGS = "062_fl12_requested_algs";
 static const std::string FL16_050_TEST = "050_fl16_test";
 
 static const std::string S6_091_HPS = "091_s6_hps";

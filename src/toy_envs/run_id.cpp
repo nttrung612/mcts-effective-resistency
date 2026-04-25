@@ -1307,6 +1307,74 @@ namespace thts {
             return run_ids;
         }
 
+        // expr id: FL12_062_REQUESTED_ALGS
+        // Frozen Lake preset for: ments, er-ments, tents, er-tents, rents, er-rents,
+        // fixed-depth-mcts, uct, and bts (EST in the codebase / plot labels).
+        if (expr_id == FL12_062_REQUESTED_ALGS) {
+            string env_id = FL_ENV_ID;
+            string env_instance_id = FL_8x12_TEST;
+            int num_trials = 250000;
+            int max_trial_length = 100;
+            int trials_log_delta = 250;
+            int mc_eval_trials_delta = 500;
+            int rollouts_per_mc_eval = 100;
+            int num_repeats = 10;
+            int num_threads = 16;
+            int eval_threads = 16;
+
+            vector<string> alg_ids = {
+                ALG_ID_UCT,
+                ALG_ID_FIXED_DEPTH_UCT,
+                ALG_ID_MENTS,
+                ALG_ID_ER_MENTS,
+                ALG_ID_RENTS,
+                ALG_ID_ER_RENTS,
+                ALG_ID_TENTS,
+                ALG_ID_ER_TENTS,
+                ALG_ID_EST
+            };
+            for (string alg_id : alg_ids) {
+                unordered_map<string,double> alg_params;
+
+                if (alg_id == ALG_ID_UCT || alg_id == ALG_ID_FIXED_DEPTH_UCT) {
+                    alg_params[PARAMS_ID_UCT_BIAS] = UctManagerArgs::USE_AUTO_BIAS;
+                } else if (alg_id == ALG_ID_EST) {
+                    alg_params[PARAMS_ID_MENTS_TEMP] = 0.1;
+                    alg_params[PARAMS_ID_MENTS_EPSILON] = 2.0;
+                } else {
+                    double temp = 0.001;
+                    double eps = 1.0;
+                    if (alg_id == ALG_ID_RENTS || alg_id == ALG_ID_ER_RENTS) {
+                        eps = 2.0;
+                    }
+                    alg_params[PARAMS_ID_MENTS_TEMP] = temp;
+                    alg_params[PARAMS_ID_MENTS_EPSILON] = eps;
+                    alg_params[PARAMS_ID_MENTS_POWER_MEAN_P] = 1.0;
+                }
+
+                if (alg_id == ALG_ID_ER_MENTS || alg_id == ALG_ID_ER_RENTS || alg_id == ALG_ID_ER_TENTS) {
+                    alg_params[PARAMS_ID_UCT_ER_C2] = 1.0;
+                }
+
+                run_ids->push_back(RunID(
+                    env_id,
+                    env_instance_id,
+                    expr_id,
+                    alg_id,
+                    alg_params,
+                    num_trials,
+                    max_trial_length,
+                    trials_log_delta,
+                    mc_eval_trials_delta,
+                    rollouts_per_mc_eval,
+                    num_repeats,
+                    num_threads,
+                    eval_threads));
+            }
+
+            return run_ids;
+        }
+
         // expr id: FL16_050_TEST
         // Test envs for hps selected params
         if (expr_id == FL16_050_TEST) {
