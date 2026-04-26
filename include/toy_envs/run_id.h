@@ -65,16 +65,19 @@ static const std::string FL12_060_ER_UCT_SMOKE = "060_fl12_er_uct_smoke";
 static const std::string FL12_061_ER_MENTS_SMOKE = "061_fl12_er_ments_smoke";
 static const std::string FL12_062_REQUESTED_ALGS = "062_fl12_requested_algs";
 static const std::string FL12_063_ER_TUNE = "063_fl12_er_tune";
+static const std::string FL12_064_BASELINES = "064_fl12_baselines";
 static const std::string FL16_050_TEST = "050_fl16_test";
 
 static const std::string S6_091_HPS = "091_s6_hps";
 static const std::string S6_092_TEST = "092_s6_test";
 static const std::string S6_093_ER_TUNE = "093_s6_er_tune";
+static const std::string S6_094_BASELINES = "094_s6_baselines";
 
 // expr ids - taxi
 static const std::string TX5_101_HPS = "101_tx5_hps";
 static const std::string TX5_102_TEST = "102_tx5_test";
 static const std::string TX5_103_ER_TUNE = "103_tx5_er_tune";
+static const std::string TX5_104_BASELINES = "104_tx5_baselines";
 
 // expr ids - app gridworld
 static const std::string FL8_053_SENS = "053_fl8_1_0";
