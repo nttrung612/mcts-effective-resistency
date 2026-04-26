@@ -73,35 +73,36 @@ namespace thts {
     }
 
     /**
-     * Helper to compute ucb values
-     * 
-     * Iterates through all possible actions, and compute ucb values for them. This function assumes that we want a 
-     * value for every single action.
-     * 
-     * Additionally uses the adaptive bias from PROST.
-     * 
+     * Default additive bonus is zero (no bonus). ER subclasses override to add c2 / N(s,a) outside the
+     * bias / prior factors.
+     */
+    double UctDNode::compute_ucb_bonus_term(int /*num_visits*/, int /*child_visits*/) const {
+        return 0.0;
+    }
+
+    /**
+     * Helper to compute ucb values.
+     *
      * The value computed is of the form:
-     *      q_value + bias * ucb_term 
-     * 
-     * If we have a policy prior, then we use the ucb value of form:
-     *      q_value + prior(action) * bias * ucb_term
-     * 
-     * If we are playing a 2 player game, then we assume at opponent nodes that the policy prior is computed to 
-     * minimise the value, so we use the value of form (where opp_coeff is -1 or 1):
-     *      opp_coeff * q_value + prior(action) * bias * ucb_term
-     * 
-     * TODO: Consider fine grained locking if want to optimise. Probably don't need bias and values to be held super 
-     *      consistent throughout function.
+     *      opp_coeff * Q(s,a) + bias * ucb_term + bonus_term
+     *
+     * If we have a policy prior, then the prior multiplies the bias-scaled ucb term:
+     *      opp_coeff * Q(s,a) + bias * prior(a) * ucb_term + bonus_term
+     *
+     * The bonus_term (compute_ucb_bonus_term) is added *outside* the bias and prior factors. This is
+     * how the MCTS-ER paper specifies the C2 / N(s,a) bonus: bias plays the role of C1 for the
+     * polynomial/log term, while C2 is an independent additive coefficient. For non-ER variants the
+     * default bonus_term is zero, so behaviour is unchanged.
+     *
+     * Uses the adaptive bias from PROST when manager.bias == USE_AUTO_BIAS.
      */
     void UctDNode::fill_ucb_values(unordered_map<shared_ptr<const Action>,double>& ucb_values, ThtsEnvContext& ctx) {
         shared_ptr<UctManager> manager = static_pointer_cast<UctManager>(thts_manager);
         double opp_coeff = is_opponent() ? -1.0 : 1.0;
-
-        // Lock all children
-        // lock_all_children();
+        bool use_prior = has_prior();
 
         // Compute adaptive bias if using
-        double bias = manager->bias; 
+        double bias = manager->bias;
         if (bias == UctManager::USE_AUTO_BIAS) {
             bias = UctManager::AUTO_BIAS_MIN_BIAS;
             for (shared_ptr<const Action> action : *actions) {
@@ -113,55 +114,34 @@ namespace thts {
             }
         }
 
-
-        // Compute ucb values (skipping choosing any nodes that are under construction)
-        while (ucb_values.size() == 0) {
+        // Compute ucb values, skipping any children that are under construction. Loops until at
+        // least one action survives the filter, otherwise an empty map would be returned.
+        while (ucb_values.empty()) {
             for (shared_ptr<const Action> action : *actions) {
                 if (is_nullptr_or_should_skip_under_construction_child(action)) {
                     continue;
-                }                
-                double action_ucb_value = 0.0;
-                shared_ptr<UctCNode> child;
-                if (has_child_node(action)) {
-                    child = get_child_node(action);
-                    child->lock();
-                }
-                int child_visits = (child != nullptr) ? child->num_visits : 0;
-                action_ucb_value += compute_ucb_term(num_visits, child_visits);
-                action_ucb_value *= bias;
-                if (has_prior()) {
-                    action_ucb_value *= policy_prior->at(action);
                 }
 
-                if (child != nullptr) {
-                    action_ucb_value += opp_coeff * get_child_node(action)->avg_return;
-                    child->unlock();
+                int child_visits = 0;
+                double child_avg_return = 0.0;
+                bool child_exists = has_child_node(action);
+                if (child_exists) {
+                    shared_ptr<UctCNode> child = get_child_node(action);
+                    lock_guard<mutex> lg(child->node_lock);
+                    child_visits = child->num_visits;
+                    child_avg_return = child->avg_return;
                 }
 
-                ucb_values[action] = action_ucb_value;
-            }  
+                double exploration_term = bias * compute_ucb_term(num_visits, child_visits);
+                if (use_prior) {
+                    exploration_term *= policy_prior->at(action);
+                }
+                double bonus_term = compute_ucb_bonus_term(num_visits, child_visits);
+                double q_term = child_exists ? opp_coeff * child_avg_return : 0.0;
+
+                ucb_values[action] = q_term + exploration_term + bonus_term;
+            }
         }
-
-        // Compute usb values
-        for (shared_ptr<const Action> action : *actions) {
-            double action_ucb_value = 0.0;
-
-            int child_visits = (has_child_node(action)) ? get_child_node(action)->num_visits : 0;
-            action_ucb_value += compute_ucb_term(num_visits, child_visits);
-            action_ucb_value *= bias;
-            if (has_prior()) {
-                action_ucb_value *= policy_prior->at(action);
-            }
-            
-            if (has_child_node(action)) {
-                action_ucb_value += opp_coeff * get_child_node(action)->avg_return;
-            }
-
-            ucb_values[action] = action_ucb_value;
-        }  
-
-        // unlock all children
-        // unlock_all_children();      
     }
 
     /**

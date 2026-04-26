@@ -61,15 +61,30 @@ namespace thts {
 
             /**
              * Computes the ucb term for a single child for use in selecting actions.
-             * 
+             *
+             * This is the term that is multiplied by the bias (and policy_prior, if present) before
+             * being added to Q in the UCB value. Subclasses override to substitute a different
+             * exploration bonus (e.g. polynomial for FixedDepthUctDNode).
+             *
              * Args:
              *      num_visits: The number of visits to this node
              *      child_visits: The number of time the child node has been visited
-             * 
+             *
              * Returns:
              *      The confidence interval term for a ucb value
              */
             virtual double compute_ucb_term(int num_visits, int child_visits) const;
+
+            /**
+             * Computes an additional UCB bonus that is added to the ucb value *outside* the bias
+             * and policy_prior factors (i.e. Q + bias * prior * compute_ucb_term + compute_ucb_bonus_term).
+             *
+             * Default returns 0.0, so non-ER variants are unaffected. The ER variants override this to
+             * return c2 / N(s,a), matching the additive ER bonus from MCTS-ER (Eq. (combined_bonus) of
+             * the MCTS-ER paper) where C1 (carried by `bias`) and C2 (the ER coefficient) are
+             * independent constants.
+             */
+            virtual double compute_ucb_bonus_term(int num_visits, int child_visits) const;
 
             /**
              * Helper function for 'select_action_ucb' that computes the ucb values
