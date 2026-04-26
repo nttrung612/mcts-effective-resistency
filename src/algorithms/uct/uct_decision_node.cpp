@@ -32,7 +32,6 @@ namespace thts {
                 static_pointer_cast<const ThtsCNode>(parent)),
             num_backups(0),
             avg_return(0.0),
-                power_mean_accumulator(0.0),
             // actions(thts_manager->thts_env->get_valid_actions_itfc(state)),
             policy_prior() 
     {   
@@ -300,8 +299,29 @@ namespace thts {
             return;
         }
 
-        power_mean_accumulator += helper::power_mean_transform(trial_return_after_node, manager.power_mean_p);
-        avg_return = helper::power_mean_inverse(power_mean_accumulator / (double) num_backups, manager.power_mean_p);
+        double p = manager.power_mean_p;
+        double weighted_sum = 0.0;
+        double total_weight = 0.0;
+        
+        lock_all_children();
+        for (shared_ptr<const Action> action : *actions) {
+            if (!has_child_node(action)) continue;
+            shared_ptr<UctCNode> child = get_child_node(action);
+            if (child->num_backups == 0) continue;
+            
+            double child_weight = static_cast<double>(child->num_visits); // T_{s_h,a}(t)
+            total_weight += child_weight;
+            
+            // Note: Stochastic-Power-UCT requires non-negative Q values.
+            weighted_sum += child_weight * helper::power_mean_transform(child->avg_return, p);
+        }
+        unlock_all_children();
+
+        if (total_weight > 0.0) {
+            avg_return = helper::power_mean_inverse(weighted_sum / total_weight, p);
+        } else {
+            avg_return = 0.0;
+        }
     }
 
     /**

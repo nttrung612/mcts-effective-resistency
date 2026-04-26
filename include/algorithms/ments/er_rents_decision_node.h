@@ -39,6 +39,13 @@ namespace thts {
 
             virtual ~ERRentsDNode() = default;
 
+            virtual void backup(
+                const std::vector<double>& trial_rewards_before_node, 
+                const std::vector<double>& trial_rewards_after_node, 
+                const double trial_cumulative_return_after_node, 
+                const double trial_cumulative_return,
+                ThtsEnvContext& ctx) override;
+
             virtual std::shared_ptr<ThtsCNode> create_child_node_helper_itfc(
                 std::shared_ptr<const Action> action) const override;
     };

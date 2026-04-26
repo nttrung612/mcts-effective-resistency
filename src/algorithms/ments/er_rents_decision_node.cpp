@@ -62,6 +62,40 @@ namespace thts {
         }
     }
 
+    void ERRentsDNode::backup(
+        const vector<double>& trial_rewards_before_node, 
+        const vector<double>& trial_rewards_after_node, 
+        const double trial_cumulative_return_after_node, 
+        const double trial_cumulative_return,
+        ThtsEnvContext& ctx) 
+    {
+        MentsManager& manager = (MentsManager&) *thts_manager;
+        if (!manager.use_avg_return) {
+            if (manager.use_max_heap) {
+                RentsDNode::backup_soft_with_max_heap(ctx);
+            } else {
+                num_backups++;
+                ActionDistr action_weights;
+                double sum_weights;
+                double normalisation_term;
+                lock_all_children();
+                // Explicitly call RentsDNode::compute_action_weights to avoid ER bonus leakage
+                RentsDNode::compute_action_weights(action_weights, sum_weights, normalisation_term, ctx);
+                unlock_all_children();
+
+                double opp_coeff = is_opponent() ? -1.0 : 1.0;
+                double temp = get_temp();
+                soft_value = opp_coeff * temp * (log(sum_weights) + normalisation_term);
+            }
+            if (manager.alias_use_caching) {
+                backup_update_alias_tables(ctx);
+            }
+            return;
+        }
+
+        RentsDNode::backup(trial_rewards_before_node, trial_rewards_after_node, trial_cumulative_return_after_node, trial_cumulative_return, ctx);
+    }
+
     shared_ptr<ERRentsCNode> ERRentsDNode::create_child_node_helper(shared_ptr<const Action> action) const {
         return make_shared<ERRentsCNode>(
             static_pointer_cast<MentsManager>(thts_manager),

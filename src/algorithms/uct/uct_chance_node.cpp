@@ -26,8 +26,7 @@ namespace thts {
                 decision_timestep,
                 static_pointer_cast<const ThtsDNode>(parent)),
             num_backups(0),
-                avg_return(0.0),
-                power_mean_accumulator(0.0)
+            avg_return(0.0)
             // next_state_distr(thts_manager->thts_env->get_transition_distribution_itfc(state,action))
     {  
     }
@@ -65,14 +64,7 @@ namespace thts {
      */
     void UctCNode::backup_average_return(const double trial_return_after_node) {
         num_backups++;
-        UctManager& manager = (UctManager&) *thts_manager;
-        if (std::fabs(manager.power_mean_p - 1.0) < 1e-12) {
-            avg_return += (trial_return_after_node - avg_return) / (double) num_backups;
-            return;
-        }
-
-        power_mean_accumulator += helper::power_mean_transform(trial_return_after_node, manager.power_mean_p);
-        avg_return = helper::power_mean_inverse(power_mean_accumulator / (double) num_backups, manager.power_mean_p);
+        avg_return += (trial_return_after_node - avg_return) / (double) num_backups;
     }
 
     /**

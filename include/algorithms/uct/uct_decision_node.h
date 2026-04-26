@@ -43,7 +43,6 @@ namespace thts {
         protected:
             int num_backups;
             double avg_return;
-            double power_mean_accumulator;
             // std::shared_ptr<ActionVector> actions;
             std::shared_ptr<ActionPrior> policy_prior;
 
