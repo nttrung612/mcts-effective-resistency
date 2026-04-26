@@ -1411,11 +1411,11 @@ namespace thts {
             int num_threads = 16;
             int eval_threads = 16;
 
-            vector<double> power_mean_ps = {2.0};
+            vector<double> power_mean_ps = {1.0, 2.0, 4.0, std::numeric_limits<double>::infinity()};
 
             vector<string> uct_alg_ids = {ALG_ID_ER_UCT, ALG_ID_ER_FIXED_DEPTH_UCT};
             vector<double> uct_biases = {UctManagerArgs::USE_AUTO_BIAS, 0.1, 0.3, 1.0, 3.0, 10.0};
-            vector<double> er_c2s = {0.1, 0.3, 1.0, 3.0, 10.0};
+            vector<double> er_c2s = {0.01, 0.05, 0.1, 0.3, 1.0, 3.0, 10.0, 50.0, 100.0};
             for (string alg_id : uct_alg_ids) {
                 for (double bias : uct_biases) {
                     for (double er_c2 : er_c2s) {
@@ -1447,33 +1447,36 @@ namespace thts {
             vector<string> ments_alg_ids = {ALG_ID_ER_MENTS, ALG_ID_ER_RENTS, ALG_ID_ER_TENTS};
             vector<double> temps = {0.001, 0.01, 0.05, 0.1, 0.5};
             vector<double> epss = {0.1, 0.3, 1.0, 2.0, 5.0};
+            vector<double> er_c2s_ments = {0.01, 0.05, 0.1, 0.3, 1.0, 3.0, 10.0, 50.0, 100.0};
             for (string alg_id : ments_alg_ids) {
                 for (double temp : temps) {
                     for (double eps : epss) {
                         for (double power_mean_p : power_mean_ps) {
-                            unordered_map<string,double> alg_params = {
-                                {PARAMS_ID_MENTS_TEMP, temp},
-                                {PARAMS_ID_MENTS_EPSILON, eps},
-                                {PARAMS_ID_MENTS_POWER_MEAN_P, power_mean_p},
-                                {PARAMS_ID_UCT_ER_C2, 1.0}
-                            };
-                            if (alg_id == ALG_ID_ER_RENTS) {
-                                alg_params[PARAMS_ID_MENTS_EPSILON] = eps;
+                            for (double er_c2 : er_c2s_ments) {
+                                unordered_map<string,double> alg_params = {
+                                    {PARAMS_ID_MENTS_TEMP, temp},
+                                    {PARAMS_ID_MENTS_EPSILON, eps},
+                                    {PARAMS_ID_MENTS_POWER_MEAN_P, power_mean_p},
+                                    {PARAMS_ID_UCT_ER_C2, er_c2}
+                                };
+                                if (alg_id == ALG_ID_ER_RENTS) {
+                                    alg_params[PARAMS_ID_MENTS_EPSILON] = eps;
+                                }
+                                run_ids->push_back(RunID(
+                                    env_id,
+                                    env_instance_id,
+                                    expr_id,
+                                    alg_id,
+                                    alg_params,
+                                    num_trials,
+                                    max_trial_length,
+                                    trials_log_delta,
+                                    mc_eval_trials_delta,
+                                    rollouts_per_mc_eval,
+                                    num_repeats,
+                                    num_threads,
+                                    eval_threads));
                             }
-                            run_ids->push_back(RunID(
-                                env_id,
-                                env_instance_id,
-                                expr_id,
-                                alg_id,
-                                alg_params,
-                                num_trials,
-                                max_trial_length,
-                                trials_log_delta,
-                                mc_eval_trials_delta,
-                                rollouts_per_mc_eval,
-                                num_repeats,
-                                num_threads,
-                                eval_threads));
                         }
                     }
                 }
@@ -1820,11 +1823,11 @@ namespace thts {
             int num_threads = 16;
             int eval_threads = 16;
 
-            vector<double> power_mean_ps = {2.0};
+            vector<double> power_mean_ps = {1.0, 2.0, 4.0, std::numeric_limits<double>::infinity()};
 
             vector<string> uct_alg_ids = {ALG_ID_ER_UCT, ALG_ID_ER_FIXED_DEPTH_UCT};
             vector<double> uct_biases = {UctManagerArgs::USE_AUTO_BIAS, 0.1, 0.3, 1.0, 3.0, 10.0};
-            vector<double> er_c2s = {0.1, 0.3, 1.0, 3.0, 10.0};
+            vector<double> er_c2s = {0.01, 0.05, 0.1, 0.3, 1.0, 3.0, 10.0, 50.0, 100.0};
             for (string alg_id : uct_alg_ids) {
                 for (double bias : uct_biases) {
                     for (double er_c2 : er_c2s) {
@@ -1856,30 +1859,33 @@ namespace thts {
             vector<string> ments_alg_ids = {ALG_ID_ER_MENTS, ALG_ID_ER_RENTS, ALG_ID_ER_TENTS};
             vector<double> temps = {0.001, 0.01, 0.05, 0.1, 0.5};
             vector<double> epss = {0.1, 0.3, 1.0, 2.0, 5.0};
+            vector<double> er_c2s_ments = {0.01, 0.05, 0.1, 0.3, 1.0, 3.0, 10.0, 50.0, 100.0};
             for (string alg_id : ments_alg_ids) {
                 for (double temp : temps) {
                     for (double eps : epss) {
                         for (double power_mean_p : power_mean_ps) {
-                            unordered_map<string,double> alg_params = {
-                                {PARAMS_ID_MENTS_TEMP, temp},
-                                {PARAMS_ID_MENTS_EPSILON, eps},
-                                {PARAMS_ID_MENTS_POWER_MEAN_P, power_mean_p},
-                                {PARAMS_ID_UCT_ER_C2, 1.0}
-                            };
-                            run_ids->push_back(RunID(
-                                env_id,
-                                env_instance_id,
-                                expr_id,
-                                alg_id,
-                                alg_params,
-                                num_trials,
-                                max_trial_length,
-                                trials_log_delta,
-                                mc_eval_trials_delta,
-                                rollouts_per_mc_eval,
-                                num_repeats,
-                                num_threads,
-                                eval_threads));
+                            for (double er_c2 : er_c2s_ments) {
+                                unordered_map<string,double> alg_params = {
+                                    {PARAMS_ID_MENTS_TEMP, temp},
+                                    {PARAMS_ID_MENTS_EPSILON, eps},
+                                    {PARAMS_ID_MENTS_POWER_MEAN_P, power_mean_p},
+                                    {PARAMS_ID_UCT_ER_C2, er_c2}
+                                };
+                                run_ids->push_back(RunID(
+                                    env_id,
+                                    env_instance_id,
+                                    expr_id,
+                                    alg_id,
+                                    alg_params,
+                                    num_trials,
+                                    max_trial_length,
+                                    trials_log_delta,
+                                    mc_eval_trials_delta,
+                                    rollouts_per_mc_eval,
+                                    num_repeats,
+                                    num_threads,
+                                    eval_threads));
+                            }
                         }
                     }
                 }
@@ -2052,11 +2058,11 @@ namespace thts {
             int num_threads = 16;
             int eval_threads = 16;
 
-            vector<double> power_mean_ps = {1.0, 2.0};
+            vector<double> power_mean_ps = {1.0, 2.0, 4.0, std::numeric_limits<double>::infinity()};
 
             vector<string> uct_alg_ids = {ALG_ID_ER_UCT, ALG_ID_ER_FIXED_DEPTH_UCT};
             vector<double> uct_biases = {UctManagerArgs::USE_AUTO_BIAS, 0.1, 0.3, 1.0, 3.0, 10.0};
-            vector<double> er_c2s = {0.1, 0.3, 1.0, 3.0, 10.0};
+            vector<double> er_c2s = {0.01, 0.05, 0.1, 0.3, 1.0, 3.0, 10.0, 50.0, 100.0};
             for (string alg_id : uct_alg_ids) {
                 for (double bias : uct_biases) {
                     for (double er_c2 : er_c2s) {
@@ -2088,30 +2094,33 @@ namespace thts {
             vector<string> ments_alg_ids = {ALG_ID_ER_MENTS, ALG_ID_ER_RENTS, ALG_ID_ER_TENTS};
             vector<double> temps = {0.001, 0.01, 0.05, 0.1, 0.5};
             vector<double> epss = {0.1, 0.3, 1.0, 2.0, 5.0};
+            vector<double> er_c2s_ments = {0.01, 0.05, 0.1, 0.3, 1.0, 3.0, 10.0, 50.0, 100.0};
             for (string alg_id : ments_alg_ids) {
                 for (double temp : temps) {
                     for (double eps : epss) {
                         for (double power_mean_p : power_mean_ps) {
-                            unordered_map<string,double> alg_params = {
-                                {PARAMS_ID_MENTS_TEMP, temp},
-                                {PARAMS_ID_MENTS_EPSILON, eps},
-                                {PARAMS_ID_MENTS_POWER_MEAN_P, power_mean_p},
-                                {PARAMS_ID_UCT_ER_C2, 1.0}
-                            };
-                            run_ids->push_back(RunID(
-                                env_id,
-                                env_instance_id,
-                                expr_id,
-                                alg_id,
-                                alg_params,
-                                num_trials,
-                                max_trial_length,
-                                trials_log_delta,
-                                mc_eval_trials_delta,
-                                rollouts_per_mc_eval,
-                                num_repeats,
-                                num_threads,
-                                eval_threads));
+                            for (double er_c2 : er_c2s_ments) {
+                                unordered_map<string,double> alg_params = {
+                                    {PARAMS_ID_MENTS_TEMP, temp},
+                                    {PARAMS_ID_MENTS_EPSILON, eps},
+                                    {PARAMS_ID_MENTS_POWER_MEAN_P, power_mean_p},
+                                    {PARAMS_ID_UCT_ER_C2, er_c2}
+                                };
+                                run_ids->push_back(RunID(
+                                    env_id,
+                                    env_instance_id,
+                                    expr_id,
+                                    alg_id,
+                                    alg_params,
+                                    num_trials,
+                                    max_trial_length,
+                                    trials_log_delta,
+                                    mc_eval_trials_delta,
+                                    rollouts_per_mc_eval,
+                                    num_repeats,
+                                    num_threads,
+                                    eval_threads));
+                            }
                         }
                     }
                 }

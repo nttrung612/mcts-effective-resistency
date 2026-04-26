@@ -294,6 +294,36 @@ namespace thts {
     void UctDNode::backup_average_return(const double trial_return_after_node) {
         num_backups++;
         UctManager& manager = (UctManager&) *thts_manager;
+
+        if (std::isinf(manager.power_mean_p)) {
+            double opp_coeff = is_opponent() ? -1.0 : 1.0;
+            double best_val = -std::numeric_limits<double>::infinity();
+            double best_child_q = 0.0;
+            bool found_child = false;
+            
+            lock_all_children();
+            for (shared_ptr<const Action> action : *actions) {
+                if (!has_child_node(action)) continue;
+                shared_ptr<UctCNode> child = get_child_node(action);
+                if (child->num_backups == 0) continue;
+                
+                double q_val = opp_coeff * child->avg_return;
+                if (q_val > best_val) {
+                    best_val = q_val;
+                    best_child_q = child->avg_return;
+                    found_child = true;
+                }
+            }
+            unlock_all_children();
+            
+            if (found_child) {
+                avg_return = best_child_q;
+            } else {
+                avg_return = 0.0;
+            }
+            return;
+        }
+
         if (std::fabs(manager.power_mean_p - 1.0) < 1e-12) {
             avg_return += (trial_return_after_node - avg_return) / (double) num_backups;
             return;
