@@ -1,0 +1,393 @@
+# Experiment Guide — Tuning ER algorithms & running baselines
+
+This guide tells you, end to end, how to tune the hyperparameters of the
+ER-augmented algorithms (ER-UCT, ER-Fixed-Depth-UCT, ER-MENTS, ER-RENTS,
+ER-TENTS) and compare them against the baseline methods that have already
+been tuned upstream. Three environments are supported: Frozen Lake 8×12,
+Sailing 6×6, and Taxi 5×5.
+
+> If you have not built the binary yet, run `make thts-run-toy-env` from the
+> repo root. (You can ignore the `googletest` step in `README.md`; tests are
+> not used here.)
+
+---
+
+## 1. Concepts
+
+Every "experiment" is identified by an `<expr_id>` string and dispatches in
+`src/toy_envs/run_id.cpp` to a list of `RunID`s. Each `RunID` is one
+(environment, algorithm, hyperparameters, num_repeats, ...) tuple. Running
+
+```
+./thts-run-toy-env <expr_id>
+```
+
+executes every `RunID` in the list sequentially (one alg at a time), with
+threading inside each run, and writes results to:
+
+```
+results/<env_id>/<env_instance_id>/<expr_id>/<alg_id>/eval_<params>.csv
+results/<env_id>/<env_instance_id>/<expr_id>/<alg_id>/log_<params>_<replicate>.csv
+results/<env_id>/<env_instance_id>/<expr_id>/<alg_id>/tree_<params>.txt
+```
+
+`eval_<params>.csv` is the file you score with `find_best_hyperparams.py` and
+plot with `plot.py`. Header rows: `replicate,num_trials,mc_eval_mean,mc_eval_std`.
+
+Hyperparameters are encoded both in the filename (`,`-joined `key=value`)
+and in the first two lines of each CSV.
+
+---
+
+## 2. The expr_ids you care about
+
+Six experiment IDs cover the workflow:
+
+| Step | Frozen Lake 8×12 | Sailing 6×6 | Taxi 5×5 |
+|---|---|---|---|
+| **ER tune** (grid search ER algos) | `063_fl12_er_tune` | `093_s6_er_tune` | `103_tx5_er_tune` |
+| **Baselines** (paired, untuned) | `064_fl12_baselines` | `094_s6_baselines` | `104_tx5_baselines` |
+
+Each ER-tune expr is paired with a baseline expr that uses the **same**
+training instance, `num_trials`, `num_repeats`, and `num_threads`, so the
+two CSVs plot directly against each other on the same x-axis. Baselines use
+hyperparameters that were already tuned in the previous (Dam et al.) work
+and are hardcoded in `run_id.cpp`.
+
+You can also re-use the older comparison runs if you want extra data points:
+
+| | FL12 | S6 | TX5 |
+|---|---|---|---|
+| Pre-existing HPS (baselines + ER@c2=1) | `051_fl12_hps` | `091_s6_hps` | `101_tx5_hps` |
+| Pre-existing test run (baselines + ER@c2=1) | `052_fl12_test` | `092_s6_test` | `102_tx5_test` |
+| Combined snapshot on test instance | `062_fl12_requested_algs` | — | — |
+
+These hardcode `er_c2 = 1.0` (and `power_mean_p = 2.0` on TX5) for ER
+variants — they're useful only if you accept un-tuned ER. Once you've run
+the `*_er_tune` expr, you should compare against the paired `*_baselines`
+expr instead.
+
+---
+
+## 3. End-to-end workflow
+
+The recipe below uses Frozen Lake as the running example. Sailing and Taxi
+are identical, just swap the expr IDs.
+
+### Step 1 — Build
+
+```bash
+make thts-run-toy-env
+```
+
+Re-run this after editing `run_id.cpp` (or any .cpp/.h under `src/` or
+`include/`). The default `Makefile` already builds the toy-env binary.
+
+### Step 2 — Run the ER tune
+
+```bash
+./thts-run-toy-env 063_fl12_er_tune
+```
+
+This sweeps the ER-augmented algorithms over the grid in
+`run_id.cpp:FL12_063_ER_TUNE`. Output lands in
+`results/frozen_lake_env/FL_8x12/063_fl12_er_tune/<alg_id>/`. (See the
+"Hyperparameter grids" section for the exact ranges.)
+
+This is by far the most expensive step. See "Compute cost" below before
+launching.
+
+### Step 3 — Pick best params per algorithm
+
+```bash
+python find_best_hyperparams.py results/frozen_lake_env/FL_8x12/063_fl12_er_tune
+```
+
+For each `<alg_id>` directory it walks the `eval_*.csv` files, takes the
+`mc_eval_mean` averaged across the 5 replicates at the **final** `num_trials`,
+and prints the (params, score) of the winner per algorithm. Save this output —
+you'll either paste it into a follow-up expr_id (Step 5) or use it directly to
+identify the right `eval_*.csv` for plotting.
+
+### Step 4 — Run the baselines on the same training instance
+
+```bash
+./thts-run-toy-env 064_fl12_baselines
+```
+
+Output lands in `results/frozen_lake_env/FL_8x12_TEST/064_fl12_baselines/<alg_id>/`.
+Baselines: UCT, Fixed-Depth-UCT, PUCT, MENTS, RENTS, TENTS, DENTS, DBMENTS, EST.
+These use the previously-tuned hyperparameters (hardcoded), so this expr is
+much cheaper than Step 2.
+
+> Note: `064_fl12_baselines` runs on `FL_8x12_TEST` (the test instance).
+> `063_fl12_er_tune` (after the recent fix) runs on `FL_8x12` (the train
+> instance), matching the published `051_HPS` convention. If you want
+> apples-to-apples test-instance comparison, follow Step 5 below.
+
+### Step 5 — (Recommended) Test the tuned ER algorithms on the held-out instance
+
+`*_er_tune` runs on the **train** instance for proper hyperparameter
+selection, but your final comparison should be on the **test** instance. To
+get that, add a small expr_id to `run_id.cpp` — call it `065_fl12_er_test`
+— that runs each ER algorithm **once** on `FL_8x12_TEST` with the best
+params from Step 3. Skeleton:
+
+```cpp
+// expr id: 065_fl12_er_test (add to run_id.h: FL12_065_ER_TEST)
+if (expr_id == FL12_065_ER_TEST) {
+    string env_id = FL_ENV_ID;
+    string env_instance_id = FL_8x12_TEST;
+    int num_trials = 150000;
+    int max_trial_length = 100;
+    int trials_log_delta = 250;
+    int mc_eval_trials_delta = 250;
+    int rollouts_per_mc_eval = 100;
+    int num_repeats = 5;       // or 25 for tighter error bars
+    int num_threads = 16;
+    int eval_threads = 16;
+
+    // Paste the per-algorithm winners from find_best_hyperparams.py here:
+    run_ids->push_back(RunID(env_id, env_instance_id, expr_id,
+        ALG_ID_ER_UCT, {{PARAMS_ID_UCT_BIAS, /*winner*/},
+                        {PARAMS_ID_UCT_ER_C2, /*winner*/},
+                        {PARAMS_ID_UCT_POWER_MEAN_P, /*winner*/}},
+        num_trials, max_trial_length, trials_log_delta,
+        mc_eval_trials_delta, rollouts_per_mc_eval, num_repeats,
+        num_threads, eval_threads));
+    // ... repeat for ER_FIXED_DEPTH_UCT, ER_MENTS, ER_RENTS, ER_TENTS ...
+    return run_ids;
+}
+```
+
+Add the matching constant in `include/toy_envs/run_id.h`:
+```cpp
+static const std::string FL12_065_ER_TEST = "065_fl12_er_test";
+```
+
+Then `make thts-run-toy-env && ./thts-run-toy-env 065_fl12_er_test`. Pair this
+with a separate `066_fl12_baselines_test` (clone `064_fl12_baselines` but
+change `env_instance_id` to `FL_8x12_TEST`) to get the apples-to-apples test
+plot.
+
+For Sailing and Taxi the same pattern applies; the `092_s6_test` /
+`102_tx5_test` exprs already run baselines on the test instance, but they
+hardcode untuned ER (`er_c2 = 1.0`). You'll want a similar `095_s6_er_test`
+/ `105_tx5_er_test` per the skeleton above.
+
+### Step 6 — Plot
+
+```bash
+python plot.py <expr_id>
+```
+
+`plot.py` is a tag-driven switchboard (`if "<tag>" in sys.argv: ...`). It
+already has hardcoded blocks for the published expr IDs; if you add
+`065_fl12_er_test`, you'll also need to add a plotting block (or use
+`all_figs` to draw whatever's there). Output goes to a `plots/` directory.
+
+---
+
+## 4. Hyperparameter grids
+
+What `*_er_tune` actually sweeps:
+
+### ER-UCT, ER-Fixed-Depth-UCT (UCT family)
+
+| Parameter | Values |
+|---|---|
+| `bias` (= C₁) | `USE_AUTO_BIAS, 0.1, 0.3, 1.0, 3.0, 10.0` (6) |
+| `er_c2` (= C₂) | `0.01, 0.05, 0.1, 0.3, 1.0, 3.0, 10.0, 50.0, 100.0` (9) |
+| `power_mean_p` | `1.0, 2.0, 4.0, ∞` (4) |
+
+= **216 configs/alg × 2 algs = 432 RunIDs** per `*_er_tune` expr.
+
+`USE_AUTO_BIAS` triggers PROST adaptive bias (sets bias to `max(|child.avg_return|)`
+at each node, lower-bounded by 0.001). Other values use a fixed bias.
+`power_mean_p = 1.0` reduces to arithmetic-mean backup; `∞` is the max
+operator.
+
+After our recent fix, the ER bonus `c2 / N(s,a)` is added **outside** the
+`bias · prior` factor, so `bias` and `er_c2` are now genuinely independent
+coefficients (this matches `ermcts.tex` Eq. (combined_bonus)). If you ran
+this expr before the fix, your old results were biased — re-run.
+
+### ER-MENTS, ER-RENTS, ER-TENTS (convex regularized family)
+
+| Parameter | Values |
+|---|---|
+| `temp` (= τ) | `0.001, 0.01, 0.05, 0.1, 0.5` (5) |
+| `epsilon` | `0.1, 0.3, 1.0, 2.0, 5.0` (5) |
+| `er_c2` (= c₂) | `0.01, 0.05, 0.1, 0.3, 1.0, 3.0, 10.0, 50.0, 100.0` (9) |
+
+= **225 configs/alg × 3 algs = 675 RunIDs** per `*_er_tune` expr.
+
+(Note: a previous version of these exprs also looped over `power_mean_p` for
+the MENTS-family. `MentsManager::power_mean_p` is **not read** by any code —
+the loop produced 4 redundant runs per config and was dropped.)
+
+**Sailing only** also injects `default_q_value = -200` into MENTS-family
+params — sailing has only negative rewards, so default-Q=0 makes unvisited
+actions wildly optimistic and degenerates MENTS into BFS. The grid is
+otherwise the same.
+
+---
+
+## 5. Compute cost & how to shrink the grid
+
+Per `*_er_tune` expr (UCT branch + MENTS branch combined):
+
+| Env | Total RunIDs | Per-run trials | Per-run repeats | Threads |
+|---|---:|---:|---:|---:|
+| FL12 | 432 + 675 = **1107** | 150 000 | 5 | 16 |
+| S6   | 432 + 675 = **1107** | 150 000 | 5 | 16 |
+| TX5  | 432 + 675 = **1107** | 150 000 | 5 | 16 |
+
+Each `RunID` = 5 replicates × 150 000 trials with thread pool of 16. Wall
+clock varies by env (sailing trials are short, taxi ones much longer because
+`max_trial_length = 200`). On a 16-core machine expect roughly **dozens of
+hours to a few days** per `*_er_tune` expr.
+
+**Ways to shrink before launching:**
+
+1. **Coarse → fine sweep.** Drop the outer `er_c2` to `{0.1, 1.0, 10.0}`
+   first (3 values instead of 9 — cuts to 1/3) and re-do a finer sweep
+   around the winner.
+2. **Reduce repeats during tuning.** `num_repeats = 5` is OK for ranking but
+   `3` is enough to pick a winner; bump back to 5 for the final test run.
+3. **Restrict to the algorithms you actually care about.** If you only need
+   ER-MENTS and ER-Fixed-Depth-UCT, comment out the others in
+   `run_id.cpp` — saves the corresponding fraction of RunIDs.
+4. **Halve `num_trials`.** `find_best_hyperparams.py` uses the value at the
+   **final** num_trials only, so 75 000 vs 150 000 is twice as fast and
+   usually picks the same winner if convergence is monotone (verify by
+   plotting one or two CSVs).
+5. **Batch and resume.** The eval CSV is opened with `ios::out` (overwrite)
+   per RunID, so you can split the grid across multiple invocations by
+   editing `run_id.cpp` to push only a subset of `RunID`s, then merge later.
+
+If you want a "smoke test" first, the existing `060_fl12_er_uct_smoke` and
+`061_fl12_er_ments_smoke` exprs run ~10 configs each in a few minutes —
+useful to confirm the pipeline before spending real compute.
+
+---
+
+## 6. Picking & using the winners
+
+`find_best_hyperparams.py <results_dir>` output looks like:
+
+```
+Algorithm: ER_MENTS
+  Best Value (mean @ max trials): 0.4321
+  Best File: results/.../063_fl12_er_tune/er-ments/eval_temp=0.001,epsilon=1,er_c2=0.3.csv
+  Optimal Hyperparams: temp=0.001, epsilon=1, er_c2=0.3
+```
+
+For each ER algorithm, write down `(temp, epsilon, er_c2)` (or
+`(bias, er_c2, power_mean_p)` for UCT-family) and paste them into the
+follow-up `065_fl12_er_test` expr (Step 5).
+
+**Sanity-check the winners.** Before you commit to those hyperparameters:
+
+- Open the winner's `eval_*.csv` and check the convergence curve isn't
+  noisy or still climbing at the final trial — if it is, you've under-trained.
+- Cross-check across multiple replicates: the script averages 5 `mc_eval_mean`
+  values; if the per-replicate spread is huge (e.g. one replicate at 0.9 and
+  four at 0.1), the winner may just be a lucky seed. Plot the curves and look
+  at `mc_eval_std` instead of `mc_eval_mean`.
+- Look at the second- and third-best configs. If `er_c2 = 0.3` wins by 0.001
+  over `er_c2 = 1.0`, the ranking is essentially noise; pick the simpler /
+  more interpretable value.
+
+---
+
+## 7. Sailing-specific note
+
+Sailing's reward is `-1 - tack` (`sailing_env.cpp:149`), so all returns are
+negative. MENTS-family algorithms must be initialised with a pessimistic
+`default_q_value` (we use **−200**, matching `S6_091_HPS` / `S6_092_TEST`)
+so that unvisited actions don't look better than visited ones with
+necessarily-negative Q. Both `S6_093_ER_TUNE` and `S6_094_BASELINES` set
+this — if you fork or copy them, keep that line.
+
+**Score interpretation:** "best `mc_eval_mean`" = least-negative.
+`find_best_hyperparams.py` already maximises, which is correct for sailing
+(closer to 0 is better).
+
+---
+
+## 8. Known limitations of the current pipeline
+
+- **`alias_use_caching` and `use_max_heap` are off everywhere.** ER-RENTS
+  explicitly throws if either is enabled (the unaugmented-prior fix is
+  implemented only for the standard non-alias non-max-heap path). If you
+  flip those flags later, you will need to extend `ERRentsDNode::select_action`
+  to also fix the alias and max-heap paths.
+- **`use_avg_return` is off everywhere.** If you flip it on for ER-MENTS or
+  ER-TENTS, the soft-value backup will leak ER through `MentsDNode::backup_entropy`
+  (a known latent bug, deliberately left because it's not exercised).
+- **`MentsManager::power_mean_p` is dead.** The MENTS family doesn't use
+  power-mean backups in this codebase. The `power_mean_p` knob only affects
+  UCT/Fixed-Depth-UCT (via `UctDNode::backup_average_return`). Don't bother
+  setting it on MENTS-family params.
+- **Plot script is a tag switchboard.** If you add a new expr_id (Step 5),
+  you'll need to add a matching block in `plot.py` or extend the `all_figs`
+  branch.
+- **Re-running an expr overwrites previous results** (eval CSV opened with
+  `ios::out`). Back up `results/<env>/<instance>/<expr>/` before re-running
+  if you want to keep both.
+- **`num_threads > 1` makes runs non-deterministic.** This is by design;
+  averaging over `num_repeats` is the variance-reduction mechanism.
+
+---
+
+## 9. Quick reference — full command sequence
+
+Frozen Lake 8×12:
+
+```bash
+make thts-run-toy-env
+./thts-run-toy-env 063_fl12_er_tune
+./thts-run-toy-env 064_fl12_baselines
+python find_best_hyperparams.py results/frozen_lake_env/FL_8x12/063_fl12_er_tune
+# → edit run_id.cpp/run_id.h to add 065_fl12_er_test with the winners
+make thts-run-toy-env
+./thts-run-toy-env 065_fl12_er_test
+python plot.py 063_fl12_er_tune 064_fl12_baselines 065_fl12_er_test
+```
+
+Sailing 6×6:
+
+```bash
+./thts-run-toy-env 093_s6_er_tune
+./thts-run-toy-env 094_s6_baselines
+python find_best_hyperparams.py results/sailing_env/6/093_s6_er_tune
+# → edit run_id.cpp/run_id.h to add 095_s6_er_test
+./thts-run-toy-env 095_s6_er_test
+```
+
+Taxi 5×5:
+
+```bash
+./thts-run-toy-env 103_tx5_er_tune
+./thts-run-toy-env 104_tx5_baselines
+python find_best_hyperparams.py results/taxi_env/5/103_tx5_er_tune
+# → edit run_id.cpp/run_id.h to add 105_tx5_er_test
+./thts-run-toy-env 105_tx5_er_test
+```
+
+---
+
+## 10. Where to look in the code
+
+- `src/toy_envs/run_id.cpp` — every expr_id branch, hyperparameter grids.
+- `include/toy_envs/run_id.h` — string IDs for envs, instances, algorithms,
+  parameters, and exprs.
+- `src/toy_envs/run_toy.cpp` — execution loop, eval CSV format, file
+  layout under `results/`.
+- `find_best_hyperparams.py` — winner-selection logic (mean of `mc_eval_mean`
+  at final `num_trials`).
+- `plot.py` — tag-driven plotting blocks.
+
+For algorithm internals see `include/algorithms/<family>/README.md` and the
+top-level `CLAUDE.md`.
