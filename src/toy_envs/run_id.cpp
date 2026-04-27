@@ -1399,9 +1399,12 @@ namespace thts {
 
         // expr id: FL12_063_ER_TUNE
         // Frozen Lake 8x12 grid search for ER-UCT, ER-fixed-depth-UCT, ER-MENTS, ER-RENTS, and ER-TENTS.
+        // Tunes on the *train* map (FL_8x12) to match the FL12_051_HPS convention; baselines have
+        // already been tuned on the same instance, so picking ER hyperparameters here keeps the
+        // train/test split consistent with the published methodology.
         if (expr_id == FL12_063_ER_TUNE) {
             string env_id = FL_ENV_ID;
-            string env_instance_id = FL_8x12_TEST;
+            string env_instance_id = FL_8x12;
             int num_trials = 150000;
             int max_trial_length = 100;
             int trials_log_delta = 250;
@@ -1411,6 +1414,8 @@ namespace thts {
             int num_threads = 16;
             int eval_threads = 16;
 
+            // power_mean_p applies only to UctDNode::backup_average_return; MentsManager.power_mean_p
+            // is currently unread, so we don't sweep it for the MENTS-family below.
             vector<double> power_mean_ps = {1.0, 2.0, 4.0, std::numeric_limits<double>::infinity()};
 
             vector<string> uct_alg_ids = {ALG_ID_ER_UCT, ALG_ID_ER_FIXED_DEPTH_UCT};
@@ -1451,32 +1456,26 @@ namespace thts {
             for (string alg_id : ments_alg_ids) {
                 for (double temp : temps) {
                     for (double eps : epss) {
-                        for (double power_mean_p : power_mean_ps) {
-                            for (double er_c2 : er_c2s_ments) {
-                                unordered_map<string,double> alg_params = {
-                                    {PARAMS_ID_MENTS_TEMP, temp},
-                                    {PARAMS_ID_MENTS_EPSILON, eps},
-                                    {PARAMS_ID_MENTS_POWER_MEAN_P, power_mean_p},
-                                    {PARAMS_ID_UCT_ER_C2, er_c2}
-                                };
-                                if (alg_id == ALG_ID_ER_RENTS) {
-                                    alg_params[PARAMS_ID_MENTS_EPSILON] = eps;
-                                }
-                                run_ids->push_back(RunID(
-                                    env_id,
-                                    env_instance_id,
-                                    expr_id,
-                                    alg_id,
-                                    alg_params,
-                                    num_trials,
-                                    max_trial_length,
-                                    trials_log_delta,
-                                    mc_eval_trials_delta,
-                                    rollouts_per_mc_eval,
-                                    num_repeats,
-                                    num_threads,
-                                    eval_threads));
-                            }
+                        for (double er_c2 : er_c2s_ments) {
+                            unordered_map<string,double> alg_params = {
+                                {PARAMS_ID_MENTS_TEMP, temp},
+                                {PARAMS_ID_MENTS_EPSILON, eps},
+                                {PARAMS_ID_UCT_ER_C2, er_c2}
+                            };
+                            run_ids->push_back(RunID(
+                                env_id,
+                                env_instance_id,
+                                expr_id,
+                                alg_id,
+                                alg_params,
+                                num_trials,
+                                max_trial_length,
+                                trials_log_delta,
+                                mc_eval_trials_delta,
+                                rollouts_per_mc_eval,
+                                num_repeats,
+                                num_threads,
+                                eval_threads));
                         }
                     }
                 }
@@ -1811,6 +1810,9 @@ namespace thts {
 
         // expr id: S6_093_ER_TUNE
         // Sailing 6x6 grid search for ER-UCT, ER-fixed-depth-UCT, ER-MENTS, ER-RENTS, and ER-TENTS.
+        // MENTS-family algorithms get the same default_q_value = -200 used by S6_091_HPS / S6_092_TEST,
+        // since sailing has only negative rewards: a default of 0 leaves unvisited actions wildly
+        // optimistic and drives MENTS into BFS-like behaviour over unvisited children.
         if (expr_id == S6_093_ER_TUNE) {
             string env_id = SAILING_ENV_ID;
             string env_instance_id = S_6_ID;
@@ -1823,6 +1825,10 @@ namespace thts {
             int num_threads = 16;
             int eval_threads = 16;
 
+            double default_q_value = -200.0;
+
+            // power_mean_p applies only to UctDNode::backup_average_return; MentsManager.power_mean_p
+            // is currently unread, so we don't sweep it for the MENTS-family below.
             vector<double> power_mean_ps = {1.0, 2.0, 4.0, std::numeric_limits<double>::infinity()};
 
             vector<string> uct_alg_ids = {ALG_ID_ER_UCT, ALG_ID_ER_FIXED_DEPTH_UCT};
@@ -1863,29 +1869,27 @@ namespace thts {
             for (string alg_id : ments_alg_ids) {
                 for (double temp : temps) {
                     for (double eps : epss) {
-                        for (double power_mean_p : power_mean_ps) {
-                            for (double er_c2 : er_c2s_ments) {
-                                unordered_map<string,double> alg_params = {
-                                    {PARAMS_ID_MENTS_TEMP, temp},
-                                    {PARAMS_ID_MENTS_EPSILON, eps},
-                                    {PARAMS_ID_MENTS_POWER_MEAN_P, power_mean_p},
-                                    {PARAMS_ID_UCT_ER_C2, er_c2}
-                                };
-                                run_ids->push_back(RunID(
-                                    env_id,
-                                    env_instance_id,
-                                    expr_id,
-                                    alg_id,
-                                    alg_params,
-                                    num_trials,
-                                    max_trial_length,
-                                    trials_log_delta,
-                                    mc_eval_trials_delta,
-                                    rollouts_per_mc_eval,
-                                    num_repeats,
-                                    num_threads,
-                                    eval_threads));
-                            }
+                        for (double er_c2 : er_c2s_ments) {
+                            unordered_map<string,double> alg_params = {
+                                {PARAMS_ID_MENTS_TEMP, temp},
+                                {PARAMS_ID_MENTS_EPSILON, eps},
+                                {PARAMS_ID_MENTS_DEFAULT_Q_VALUE, default_q_value},
+                                {PARAMS_ID_UCT_ER_C2, er_c2}
+                            };
+                            run_ids->push_back(RunID(
+                                env_id,
+                                env_instance_id,
+                                expr_id,
+                                alg_id,
+                                alg_params,
+                                num_trials,
+                                max_trial_length,
+                                trials_log_delta,
+                                mc_eval_trials_delta,
+                                rollouts_per_mc_eval,
+                                num_repeats,
+                                num_threads,
+                                eval_threads));
                         }
                     }
                 }
@@ -2058,6 +2062,8 @@ namespace thts {
             int num_threads = 16;
             int eval_threads = 16;
 
+            // power_mean_p applies only to UctDNode::backup_average_return; MentsManager.power_mean_p
+            // is currently unread, so we don't sweep it for the MENTS-family below.
             vector<double> power_mean_ps = {1.0, 2.0, 4.0, std::numeric_limits<double>::infinity()};
 
             vector<string> uct_alg_ids = {ALG_ID_ER_UCT, ALG_ID_ER_FIXED_DEPTH_UCT};
@@ -2098,29 +2104,26 @@ namespace thts {
             for (string alg_id : ments_alg_ids) {
                 for (double temp : temps) {
                     for (double eps : epss) {
-                        for (double power_mean_p : power_mean_ps) {
-                            for (double er_c2 : er_c2s_ments) {
-                                unordered_map<string,double> alg_params = {
-                                    {PARAMS_ID_MENTS_TEMP, temp},
-                                    {PARAMS_ID_MENTS_EPSILON, eps},
-                                    {PARAMS_ID_MENTS_POWER_MEAN_P, power_mean_p},
-                                    {PARAMS_ID_UCT_ER_C2, er_c2}
-                                };
-                                run_ids->push_back(RunID(
-                                    env_id,
-                                    env_instance_id,
-                                    expr_id,
-                                    alg_id,
-                                    alg_params,
-                                    num_trials,
-                                    max_trial_length,
-                                    trials_log_delta,
-                                    mc_eval_trials_delta,
-                                    rollouts_per_mc_eval,
-                                    num_repeats,
-                                    num_threads,
-                                    eval_threads));
-                            }
+                        for (double er_c2 : er_c2s_ments) {
+                            unordered_map<string,double> alg_params = {
+                                {PARAMS_ID_MENTS_TEMP, temp},
+                                {PARAMS_ID_MENTS_EPSILON, eps},
+                                {PARAMS_ID_UCT_ER_C2, er_c2}
+                            };
+                            run_ids->push_back(RunID(
+                                env_id,
+                                env_instance_id,
+                                expr_id,
+                                alg_id,
+                                alg_params,
+                                num_trials,
+                                max_trial_length,
+                                trials_log_delta,
+                                mc_eval_trials_delta,
+                                rollouts_per_mc_eval,
+                                num_repeats,
+                                num_threads,
+                                eval_threads));
                         }
                     }
                 }
@@ -2169,6 +2172,11 @@ namespace thts {
         }
 
         // expr id: S6_094_BASELINES
+        // Baselines on the sailing train instance, sized to match S6_093_ER_TUNE for fair plotting.
+        // MENTS-family algorithms set default_q_value = -200 to match the published S6_091/S6_092
+        // tuning convention -- without it the previously selected (temp, eps) values are operating
+        // against a different optimisation surface (default_q_value=0 makes unvisited actions look
+        // optimistic compared with any visited child whose Q is necessarily negative).
         if (expr_id == S6_094_BASELINES) {
             string env_id = SAILING_ENV_ID;
             string env_instance_id = S_6_ID;
@@ -2181,6 +2189,8 @@ namespace thts {
             int num_threads = 16;
             int eval_threads = 16;
 
+            double default_q_value = -200.0;
+
             vector<string> alg_ids = { ALG_ID_UCT, ALG_ID_FIXED_DEPTH_UCT, ALG_ID_PUCT, ALG_ID_MENTS, ALG_ID_RENTS, ALG_ID_TENTS, ALG_ID_DENTS, ALG_ID_DBMENTS, ALG_ID_EST };
             for (string alg_id : alg_ids) {
                 unordered_map<string,double> alg_params;
@@ -2190,9 +2200,11 @@ namespace thts {
                 } else if (alg_id == ALG_ID_EST) {
                     alg_params[PARAMS_ID_MENTS_TEMP] = 0.1;
                     alg_params[PARAMS_ID_MENTS_EPSILON] = 2.0;
+                    alg_params[PARAMS_ID_MENTS_DEFAULT_Q_VALUE] = default_q_value;
                 } else if (alg_id == ALG_ID_DENTS || alg_id == ALG_ID_DBMENTS) {
                     alg_params[PARAMS_ID_MENTS_TEMP] = 0.1;
                     alg_params[PARAMS_ID_MENTS_EPSILON] = 1.0;
+                    alg_params[PARAMS_ID_MENTS_DEFAULT_Q_VALUE] = default_q_value;
                     if (alg_id == ALG_ID_DENTS) alg_params[PARAMS_ID_DENTS_TEMP] = 1.0;
                 } else {
                     double temp = 0.001;
@@ -2200,7 +2212,7 @@ namespace thts {
                     if (alg_id == ALG_ID_RENTS) eps = 2.0;
                     alg_params[PARAMS_ID_MENTS_TEMP] = temp;
                     alg_params[PARAMS_ID_MENTS_EPSILON] = eps;
-                    alg_params[PARAMS_ID_MENTS_POWER_MEAN_P] = 1.0;
+                    alg_params[PARAMS_ID_MENTS_DEFAULT_Q_VALUE] = default_q_value;
                 }
                 run_ids->push_back(RunID(env_id, env_instance_id, expr_id, alg_id, alg_params, num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta, rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
             }
