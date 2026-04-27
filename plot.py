@@ -171,13 +171,13 @@ def read_eval_files(filenames,num_trials_scale):
     return alg_ids, bias_or_temps, replicates, values, num_trialss, epsilons, dents_temps
 
 def make_plot(
-    filenames, 
-    plot_filename, 
-    hue_key=None, 
-    title=None, 
-    xaxis_lab=None, 
-    yaxis_lab=None, 
-    legend_lab=None, 
+    filenames,
+    plot_filename,
+    hue_key=None,
+    title=None,
+    xaxis_lab=None,
+    yaxis_lab=None,
+    legend_lab=None,
     num_trials_truncate=None,
     alg_ids_to_add_param_to=None,
     y_scale_transform_forward=None,
@@ -193,7 +193,8 @@ def make_plot(
     figsize=None,
     font_scale=1.2,
     linewidth=2.5,
-    dpi=200):
+    dpi=200,
+    er_vs_baseline_mode=False):
     """Read in data, preprocess, and then call make plot"""
 
 
@@ -259,7 +260,37 @@ def make_plot(
     
     palette = None
     dashes = None
-    if hue_per_algo:
+    if hue_per_algo and er_vs_baseline_mode:
+        # ER vs baseline comparison palette: each (BASELINE, ER-BASELINE) pair shares one colour;
+        # baseline is dashed and ER is solid so the pair is visually grouped but distinguishable.
+        # Algorithms without an ER pair (PUCT / BTS / DENTS / DB-MENTS) stay solid.
+        palette = {}
+        dashes = {}
+        base_colours = {
+            "UCT":              "tab:green",
+            "FIXED-DEPTH-UCT":  "tab:olive",
+            "PUCT":             "tab:gray",
+            "MENTS":            "tab:red",
+            "BTS":              "tab:blue",
+            "DENTS":            "tab:orange",
+            "DB-DENTS":         "tab:orange",
+            "DB-MENTS":         "tab:orange",
+            "TENTS":            "tab:purple",
+            "RENTS":            "tab:brown",
+        }
+        alg_set = set(pretty_alg_ids)
+        for alg_id in alg_set:
+            base = alg_id[3:] if alg_id.startswith("ER-") else alg_id
+            base = base.split("(", 1)[0]  # strip parametric suffix like "MENTS(1.0)"
+            palette[alg_id] = base_colours.get(base, "tab:cyan")
+            if alg_id.startswith("ER-"):
+                dashes[alg_id] = ""
+            else:
+                # Dash the baseline only when its ER counterpart is also being plotted; otherwise
+                # leave it solid so single-algorithm plots aren't gratuitously dashed.
+                has_er_pair = ("ER-" + base) in alg_set
+                dashes[alg_id] = (4, 2) if has_er_pair else ""
+    elif hue_per_algo:
         palette = {}
         dashes = {}
         alg_set = set(pretty_alg_ids)
@@ -1517,6 +1548,93 @@ if __name__ == "__main__":
             plot_filename="plots/059_fl8_0_001_03.png",
             hue_key="pretty_alg_id",
             num_trials_truncate=1000000)
+
+    # =====================================================================================
+    # ER-vs-baseline comparison plots (063 / 093 / 103 vs 064 / 094 / 104)
+    #
+    # Workflow:
+    #   1. Run the *_er_tune and *_baselines exprs.
+    #   2. python find_best_hyperparams.py results/<env>/<instance>/<expr>_er_tune
+    #   3. Paste the winning eval_*.csv basename per algorithm into the dicts below.
+    #   4. python plot.py compare_<env>_tune
+    #
+    # The make_plot er_vs_baseline_mode flag groups each (BASELINE, ER-BASELINE) pair under
+    # one colour, draws the baseline dashed and the ER-augmented variant solid. Algorithms
+    # without an ER pair (PUCT, BTS, DENTS, DB-MENTS) stay solid.
+    # =====================================================================================
+
+    # === FL12 best ER configs -- fill in from `find_best_hyperparams.py 063_fl12_er_tune` ===
+    FL12_ER_BEST = {
+        # "er-uct":              "eval_bias=...,er_c2=...,power_mean_p=....csv",
+        # "er-fixed-depth-uct":  "eval_bias=...,er_c2=...,power_mean_p=....csv",
+        # "er-ments":            "eval_temp=...,epsilon=...,er_c2=....csv",
+        # "er-rents":            "eval_temp=...,epsilon=...,er_c2=....csv",
+        # "er-tents":            "eval_temp=...,epsilon=...,er_c2=....csv",
+    }
+
+    if "compare_fl12_tune" in sys.argv or "all_figs" in sys.argv:
+        er_dir = "results/frozen_lake_env/FL_8x12/063_fl12_er_tune"
+        bl_dir = "results/frozen_lake_env/FL_8x12/064_fl12_baselines"
+        filenames = []
+        for alg, fname in FL12_ER_BEST.items():
+            filenames.append("{er_dir}/{alg}/{fname}".format(er_dir=er_dir, alg=alg, fname=fname))
+        # Baselines have a single eval CSV per algorithm folder (one config each)
+        filenames += glob.glob("{bl_dir}/*/eval_*.csv".format(bl_dir=bl_dir))
+        make_plot(
+            filenames=filenames,
+            plot_filename="plots/compare_fl12_tune.png",
+            hue_key="pretty_alg_id",
+            title="Frozen Lake 8x12 -- ER vs baselines",
+            yaxis_lab="Monte-Carlo Value Estimate",
+            er_vs_baseline_mode=True)
+
+    # === S6 best ER configs -- fill in from `find_best_hyperparams.py 093_s6_er_tune` ===
+    S6_ER_BEST = {
+        # "er-uct":              "eval_bias=...,er_c2=...,power_mean_p=....csv",
+        # "er-fixed-depth-uct":  "eval_bias=...,er_c2=...,power_mean_p=....csv",
+        # "er-ments":            "eval_temp=...,epsilon=...,default_q_value=-200,er_c2=....csv",
+        # "er-rents":            "eval_temp=...,epsilon=...,default_q_value=-200,er_c2=....csv",
+        # "er-tents":            "eval_temp=...,epsilon=...,default_q_value=-200,er_c2=....csv",
+    }
+
+    if "compare_s6_tune" in sys.argv or "all_figs" in sys.argv:
+        er_dir = "results/sailing_env/6/093_s6_er_tune"
+        bl_dir = "results/sailing_env/6/094_s6_baselines"
+        filenames = []
+        for alg, fname in S6_ER_BEST.items():
+            filenames.append("{er_dir}/{alg}/{fname}".format(er_dir=er_dir, alg=alg, fname=fname))
+        filenames += glob.glob("{bl_dir}/*/eval_*.csv".format(bl_dir=bl_dir))
+        make_plot(
+            filenames=filenames,
+            plot_filename="plots/compare_s6_tune.png",
+            hue_key="pretty_alg_id",
+            title="Sailing 6x6 -- ER vs baselines",
+            yaxis_lab="Monte-Carlo Value Estimate",
+            er_vs_baseline_mode=True)
+
+    # === TX5 best ER configs -- fill in from `find_best_hyperparams.py 103_tx5_er_tune` ===
+    TX5_ER_BEST = {
+        # "er-uct":              "eval_bias=...,er_c2=...,power_mean_p=....csv",
+        # "er-fixed-depth-uct":  "eval_bias=...,er_c2=...,power_mean_p=....csv",
+        # "er-ments":            "eval_temp=...,epsilon=...,er_c2=....csv",
+        # "er-rents":            "eval_temp=...,epsilon=...,er_c2=....csv",
+        # "er-tents":            "eval_temp=...,epsilon=...,er_c2=....csv",
+    }
+
+    if "compare_tx5_tune" in sys.argv or "all_figs" in sys.argv:
+        er_dir = "results/taxi_env/5/103_tx5_er_tune"
+        bl_dir = "results/taxi_env/5/104_tx5_baselines"
+        filenames = []
+        for alg, fname in TX5_ER_BEST.items():
+            filenames.append("{er_dir}/{alg}/{fname}".format(er_dir=er_dir, alg=alg, fname=fname))
+        filenames += glob.glob("{bl_dir}/*/eval_*.csv".format(bl_dir=bl_dir))
+        make_plot(
+            filenames=filenames,
+            plot_filename="plots/compare_tx5_tune.png",
+            hue_key="pretty_alg_id",
+            title="Taxi 5x5 -- ER vs baselines",
+            yaxis_lab="Monte-Carlo Value Estimate",
+            er_vs_baseline_mode=True)
 
 
 

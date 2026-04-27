@@ -2133,9 +2133,12 @@ namespace thts {
         }
 
         // expr id: FL12_064_BASELINES
+        // Baselines on the FL12 train instance, sized to match FL12_063_ER_TUNE for fair plotting
+        // (same num_trials, num_repeats, num_threads). Both write under the same instance directory
+        // so a single comparison plot can read from both folders.
         if (expr_id == FL12_064_BASELINES) {
             string env_id = FL_ENV_ID;
-            string env_instance_id = FL_8x12_TEST;
+            string env_instance_id = FL_8x12;
             int num_trials = 150000;
             int max_trial_length = 100;
             int trials_log_delta = 250;
