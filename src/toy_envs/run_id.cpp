@@ -1410,7 +1410,7 @@ namespace thts {
             int trials_log_delta = 250;
             int mc_eval_trials_delta = 250;
             int rollouts_per_mc_eval = 100;
-            int num_repeats = 5;
+            int num_repeats = 10;
             int num_threads = 16;
             int eval_threads = 16;
 
@@ -1821,7 +1821,7 @@ namespace thts {
             int trials_log_delta = 250;
             int mc_eval_trials_delta = 250;
             int rollouts_per_mc_eval = 250;
-            int num_repeats = 5;
+            int num_repeats = 10;
             int num_threads = 16;
             int eval_threads = 16;
 
@@ -2058,7 +2058,7 @@ namespace thts {
             int trials_log_delta = 250;
             int mc_eval_trials_delta = 250;
             int rollouts_per_mc_eval = 100;
-            int num_repeats = 5;
+            int num_repeats = 10;
             int num_threads = 16;
             int eval_threads = 16;
 
@@ -2144,7 +2144,7 @@ namespace thts {
             int trials_log_delta = 250;
             int mc_eval_trials_delta = 250;
             int rollouts_per_mc_eval = 100;
-            int num_repeats = 5;
+            int num_repeats = 10;
             int num_threads = 16;
             int eval_threads = 16;
 
@@ -2188,7 +2188,7 @@ namespace thts {
             int trials_log_delta = 250;
             int mc_eval_trials_delta = 250;
             int rollouts_per_mc_eval = 250;
-            int num_repeats = 5;
+            int num_repeats = 10;
             int num_threads = 16;
             int eval_threads = 16;
 
@@ -2231,7 +2231,7 @@ namespace thts {
             int trials_log_delta = 250;
             int mc_eval_trials_delta = 250;
             int rollouts_per_mc_eval = 100;
-            int num_repeats = 5;
+            int num_repeats = 10;
             int num_threads = 16;
             int eval_threads = 16;
 

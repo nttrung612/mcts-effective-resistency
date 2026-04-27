@@ -140,7 +140,7 @@ if (expr_id == FL12_065_ER_TEST) {
     int trials_log_delta = 250;
     int mc_eval_trials_delta = 250;
     int rollouts_per_mc_eval = 100;
-    int num_repeats = 5;       // or 25 for tighter error bars
+    int num_repeats = 10;      // bump higher (e.g. 25) for paper-quality bands
     int num_threads = 16;
     int eval_threads = 16;
 
@@ -272,26 +272,34 @@ otherwise the same.
 
 ## 5. Compute cost & how to shrink the grid
 
-Per `*_er_tune` expr (UCT branch + MENTS branch combined):
+Per `*_er_tune` expr (UCT branch + MENTS branch combined), and the paired
+`*_baselines` expr that ER is compared against:
 
-| Env | Total RunIDs | Per-run trials | Per-run repeats | Threads |
+| Stage | Per-env RunIDs | Per-run trials | Per-run repeats | Threads |
 |---|---:|---:|---:|---:|
-| FL12 | 432 + 675 = **1107** | 150 000 | 5 | 16 |
-| S6   | 432 + 675 = **1107** | 150 000 | 5 | 16 |
-| TX5  | 432 + 675 = **1107** | 150 000 | 5 | 16 |
+| `*_er_tune` (063 / 093 / 103)        | 432 + 675 = **1107** | 150 000 | 10 | 16 |
+| `*_baselines` (064 / 094 / 104)      | 9                    | 150 000 | 10 | 16 |
 
-Each `RunID` = 5 replicates × 150 000 trials with thread pool of 16. Wall
+ER tune and the paired baselines run at the **same horizon** (150k × 10), so
+the comparison plot has matched x-extents and the ER hyperparameter selection
+horizon equals the displayed horizon (no "tuned-for-different-horizon" bias).
+
+Each `RunID` = 10 replicates × 150 000 trials with a thread pool of 16. Wall
 clock varies by env (sailing trials are short, taxi ones much longer because
-`max_trial_length = 200`). On a 16-core machine expect roughly **dozens of
-hours to a few days** per `*_er_tune` expr.
+`max_trial_length = 200`). On a 16-core machine expect roughly **a couple of
+days** per `*_er_tune` expr; the paired `*_baselines` expr finishes in
+minutes.
 
 **Ways to shrink before launching:**
 
 1. **Coarse → fine sweep.** Drop the outer `er_c2` to `{0.1, 1.0, 10.0}`
    first (3 values instead of 9 — cuts to 1/3) and re-do a finer sweep
    around the winner.
-2. **Reduce repeats during tuning.** `num_repeats = 5` is OK for ranking but
-   `3` is enough to pick a winner; bump back to 5 for the final test run.
+2. **Reduce repeats during tuning.** 10 reps gives reasonably tight rankings;
+   you can drop to 5 if `find_best_hyperparams.py` shows clear separation
+   (the `spread` column tells you whether the winner is robust). Bump back
+   to 10 (or higher) for the final paired baselines / test run that you
+   actually plot.
 3. **Restrict to the algorithms you actually care about.** If you only need
    ER-MENTS and ER-Fixed-Depth-UCT, comment out the others in
    `run_id.cpp` — saves the corresponding fraction of RunIDs.
