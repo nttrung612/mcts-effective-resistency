@@ -115,15 +115,12 @@ identify the right `eval_*.csv` for plotting.
 ./thts-run-toy-env 064_fl12_baselines
 ```
 
-Output lands in `results/frozen_lake_env/FL_8x12_TEST/064_fl12_baselines/<alg_id>/`.
+Output lands in `results/frozen_lake_env/FL_8x12/064_fl12_baselines/<alg_id>/`.
 Baselines: UCT, Fixed-Depth-UCT, PUCT, MENTS, RENTS, TENTS, DENTS, DBMENTS, EST.
 These use the previously-tuned hyperparameters (hardcoded), so this expr is
-much cheaper than Step 2.
-
-> Note: `064_fl12_baselines` runs on `FL_8x12_TEST` (the test instance).
-> `063_fl12_er_tune` (after the recent fix) runs on `FL_8x12` (the train
-> instance), matching the published `051_HPS` convention. If you want
-> apples-to-apples test-instance comparison, follow Step 5 below.
+much cheaper than Step 2. `064` writes to the same `FL_8x12` instance
+directory as `063_fl12_er_tune`, so both feed a single comparison plot
+(Step 5).
 
 ### Step 5 — (Recommended) Test the tuned ER algorithms on the held-out instance
 
@@ -175,16 +172,56 @@ For Sailing and Taxi the same pattern applies; the `092_s6_test` /
 hardcode untuned ER (`er_c2 = 1.0`). You'll want a similar `095_s6_er_test`
 / `105_tx5_er_test` per the skeleton above.
 
-### Step 6 — Plot
+### Step 6 — Plot ER vs baselines
 
-```bash
-python plot.py <expr_id>
-```
+`plot.py` ships with three tag-driven comparison blocks at the bottom of
+its `__main__`: `compare_fl12_tune`, `compare_s6_tune`, `compare_tx5_tune`.
+Each one reads the best ER configurations from a small dict you fill in by
+hand, plus all baseline `eval_*.csv`s globbed from the paired baselines
+expr.
 
-`plot.py` is a tag-driven switchboard (`if "<tag>" in sys.argv: ...`). It
-already has hardcoded blocks for the published expr IDs; if you add
-`065_fl12_er_test`, you'll also need to add a plotting block (or use
-`all_figs` to draw whatever's there). Output goes to a `plots/` directory.
+1. Open `plot.py` and find `FL12_ER_BEST = { ... }` (likewise `S6_ER_BEST`,
+   `TX5_ER_BEST`). The dict starts out commented:
+   ```python
+   FL12_ER_BEST = {
+       # "er-uct":             "eval_bias=...,er_c2=...,power_mean_p=....csv",
+       # "er-fixed-depth-uct": "eval_bias=...,er_c2=...,power_mean_p=....csv",
+       # "er-ments":           "eval_temp=...,epsilon=...,er_c2=....csv",
+       # "er-rents":           "eval_temp=...,epsilon=...,er_c2=....csv",
+       # "er-tents":           "eval_temp=...,epsilon=...,er_c2=....csv",
+   }
+   ```
+2. Paste the basenames of the winning `eval_*.csv` files reported by
+   `find_best_hyperparams.py`, uncommenting the lines as you go. The basename
+   is just the file inside `<er_dir>/<alg>/`, not the full path. (For sailing,
+   include `default_q_value=-200` in the filename, since the tune script
+   passes it explicitly.)
+3. Run:
+   ```bash
+   python plot.py compare_fl12_tune
+   python plot.py compare_s6_tune
+   python plot.py compare_tx5_tune
+   ```
+   Output PNGs land in `plots/compare_<env>_tune.png`.
+
+The comparison blocks call `make_plot(..., er_vs_baseline_mode=True)`, which
+groups each `(BASELINE, ER-BASELINE)` pair under one colour and draws the
+baseline dashed and the ER variant solid -- so MENTS/ER-MENTS, RENTS/ER-RENTS,
+TENTS/ER-TENTS, UCT/ER-UCT, FIXED-DEPTH-UCT/ER-FIXED-DEPTH-UCT each show up
+as a clean dashed-vs-solid pair in the same hue. Algorithms without an ER
+pair (PUCT, BTS, DENTS) stay solid in their own colour.
+
+The shaded band around each line is **seaborn's default 95% bootstrap CI of
+the cross-replicate mean** (5 replicates here -- the band is wide; bump
+`num_repeats` in your `065_*_er_test` follow-up for tighter bands). The
+single-snapshot `mc_eval_std` column from the CSV is intentionally not used:
+what you want plotted is the variability *across independent MCTS runs*,
+which is exactly what cross-replicate aggregation gives you.
+
+If you want to plot something other than these three blocks, the existing
+`if "<tag>" in sys.argv: ...` switchboard above still works -- pick an
+existing tag like `000_fig_fl` for the older paper figures, or add your own
+block following the same pattern.
 
 ---
 
@@ -350,10 +387,11 @@ make thts-run-toy-env
 ./thts-run-toy-env 063_fl12_er_tune
 ./thts-run-toy-env 064_fl12_baselines
 python find_best_hyperparams.py results/frozen_lake_env/FL_8x12/063_fl12_er_tune
+# → paste each winner's eval_*.csv basename into FL12_ER_BEST in plot.py
+python plot.py compare_fl12_tune
+# (optional) to also evaluate ER on the held-out test map:
 # → edit run_id.cpp/run_id.h to add 065_fl12_er_test with the winners
-make thts-run-toy-env
-./thts-run-toy-env 065_fl12_er_test
-python plot.py 063_fl12_er_tune 064_fl12_baselines 065_fl12_er_test
+# make thts-run-toy-env && ./thts-run-toy-env 065_fl12_er_test
 ```
 
 Sailing 6×6:
@@ -362,8 +400,8 @@ Sailing 6×6:
 ./thts-run-toy-env 093_s6_er_tune
 ./thts-run-toy-env 094_s6_baselines
 python find_best_hyperparams.py results/sailing_env/6/093_s6_er_tune
-# → edit run_id.cpp/run_id.h to add 095_s6_er_test
-./thts-run-toy-env 095_s6_er_test
+# → paste winners into S6_ER_BEST in plot.py
+python plot.py compare_s6_tune
 ```
 
 Taxi 5×5:
@@ -372,8 +410,8 @@ Taxi 5×5:
 ./thts-run-toy-env 103_tx5_er_tune
 ./thts-run-toy-env 104_tx5_baselines
 python find_best_hyperparams.py results/taxi_env/5/103_tx5_er_tune
-# → edit run_id.cpp/run_id.h to add 105_tx5_er_test
-./thts-run-toy-env 105_tx5_er_test
+# → paste winners into TX5_ER_BEST in plot.py
+python plot.py compare_tx5_tune
 ```
 
 ---
