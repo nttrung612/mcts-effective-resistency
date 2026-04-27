@@ -1,3 +1,4 @@
+import json
 import os
 import glob
 import argparse
@@ -58,9 +59,15 @@ def format_params(param_dict):
 
 
 def find_best_hyperparams(base_dir, top_k):
+    """
+    Returns a dict {alg_id: {best, candidates: [...]}} where best is the top-1 entry
+    and candidates is a list of the top top_k entries. Each entry is itself a dict
+    with keys: file (full path), basename, mean, spread, num_reps, params.
+    Also prints the same information to stdout.
+    """
     if not os.path.isdir(base_dir):
         print(f"Directory not found: {base_dir}")
-        return
+        return {}
 
     algorithms = sorted(
         d for d in os.listdir(base_dir) if os.path.isdir(os.path.join(base_dir, d))
@@ -70,6 +77,7 @@ def find_best_hyperparams(base_dir, top_k):
     print(f"Best Hyperparameters Analysis for: {base_dir}")
     print(f"{'=' * 80}")
 
+    results = {}
     for algo in algorithms:
         algo_dir = os.path.join(base_dir, algo)
         # eval_*.csv only -- skip log_*_NNN.csv which has a different schema
@@ -91,6 +99,7 @@ def find_best_hyperparams(base_dir, top_k):
         keep = candidates[: max(1, top_k)]
 
         print(f"\nAlgorithm: \033[1m{algo.upper()}\033[0m  ({len(candidates)} configs)")
+        ranked = []
         for rank, (score, params, csv_file) in enumerate(keep, start=1):
             label = "Best" if rank == 1 else f"#{rank}"
             colour_open, colour_close = ("\033[92m", "\033[0m") if rank == 1 else ("", "")
@@ -101,6 +110,23 @@ def find_best_hyperparams(base_dir, top_k):
             )
             print(f"    File:   {csv_file}")
             print(f"    Params: {colour_open}{format_params(params)}{colour_close}")
+            ranked.append({
+                "rank": rank,
+                "file": csv_file,
+                "basename": os.path.basename(csv_file),
+                "mean": score.mean,
+                "spread": score.spread,
+                "num_reps": score.num_reps,
+                "params": {k: v for k, v in params.items() if k != "alg"},
+            })
+
+        results[algo] = {
+            "best": ranked[0],
+            "candidates": ranked,
+            "num_total_configs": len(candidates),
+        }
+
+    return results
 
 
 if __name__ == "__main__":
@@ -118,7 +144,21 @@ if __name__ == "__main__":
         default=5,
         help="Print the top K candidates per algorithm (default: 5). Set to 1 for the old behaviour.",
     )
+    parser.add_argument(
+        "--json-out",
+        type=str,
+        default=None,
+        help="Optional path to also write the winners as JSON. Schema: "
+             "{<directory>: {<alg_id>: {best, candidates, num_total_configs}}}.",
+    )
     args = parser.parse_args()
 
+    json_blob = {}
     for directory in args.directories:
-        find_best_hyperparams(directory, args.top_k)
+        json_blob[directory] = find_best_hyperparams(directory, args.top_k)
+
+    if args.json_out:
+        os.makedirs(os.path.dirname(os.path.abspath(args.json_out)) or ".", exist_ok=True)
+        with open(args.json_out, "w") as f:
+            json.dump(json_blob, f, indent=2)
+        print(f"\nWrote {args.json_out}")

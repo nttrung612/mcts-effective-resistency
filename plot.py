@@ -1,3 +1,4 @@
+import json
 import os
 
 import matplotlib
@@ -12,6 +13,50 @@ import pandas as pd
 import sys
 
 import glob
+
+
+def _parse_er_best_json_arg():
+    """
+    Strip --er-best-json=PATH (or --er-best-json PATH) out of sys.argv early so the rest of
+    plot.py's tag-driven sys.argv matching still works. Returns the loaded {alg_id: basename}
+    dict, or None if the flag wasn't passed.
+    """
+    flag = "--er-best-json"
+    path = None
+    out = []
+    skip_next = False
+    for i, arg in enumerate(sys.argv):
+        if skip_next:
+            skip_next = False
+            continue
+        if arg.startswith(flag + "="):
+            path = arg.split("=", 1)[1]
+            continue
+        if arg == flag:
+            if i + 1 < len(sys.argv):
+                path = sys.argv[i + 1]
+                skip_next = True
+            continue
+        out.append(arg)
+    sys.argv[:] = out
+    if path is None:
+        return None
+    with open(path) as f:
+        blob = json.load(f)
+    # Schema produced by find_best_hyperparams.py --json-out is
+    #   {<base_dir>: {<alg_id>: {best: {basename, ...}, candidates: [...], ...}, ...}}
+    # We flatten to {<alg_id>: <basename>} of the top-1 winner. If the JSON has multiple
+    # directories (e.g. one per env), the orchestrator should call plot.py once per env so
+    # only one outer key is present at a time.
+    winners = {}
+    for _base_dir, alg_results in blob.items():
+        for alg_id, info in alg_results.items():
+            if "best" in info and "basename" in info["best"]:
+                winners[alg_id] = info["best"]["basename"]
+    return winners
+
+
+_ER_BEST_OVERRIDE = _parse_er_best_json_arg()
 
 def make_plot_df(
     df, 
@@ -1575,8 +1620,9 @@ if __name__ == "__main__":
     if "compare_fl12_tune" in sys.argv or "all_figs" in sys.argv:
         er_dir = "results/frozen_lake_env/FL_8x12/063_fl12_er_tune"
         bl_dir = "results/frozen_lake_env/FL_8x12/064_fl12_baselines"
+        er_best = _ER_BEST_OVERRIDE if _ER_BEST_OVERRIDE is not None else FL12_ER_BEST
         filenames = []
-        for alg, fname in FL12_ER_BEST.items():
+        for alg, fname in er_best.items():
             filenames.append("{er_dir}/{alg}/{fname}".format(er_dir=er_dir, alg=alg, fname=fname))
         # Baselines have a single eval CSV per algorithm folder (one config each)
         filenames += glob.glob("{bl_dir}/*/eval_*.csv".format(bl_dir=bl_dir))
@@ -1600,8 +1646,9 @@ if __name__ == "__main__":
     if "compare_s6_tune" in sys.argv or "all_figs" in sys.argv:
         er_dir = "results/sailing_env/6/093_s6_er_tune"
         bl_dir = "results/sailing_env/6/094_s6_baselines"
+        er_best = _ER_BEST_OVERRIDE if _ER_BEST_OVERRIDE is not None else S6_ER_BEST
         filenames = []
-        for alg, fname in S6_ER_BEST.items():
+        for alg, fname in er_best.items():
             filenames.append("{er_dir}/{alg}/{fname}".format(er_dir=er_dir, alg=alg, fname=fname))
         filenames += glob.glob("{bl_dir}/*/eval_*.csv".format(bl_dir=bl_dir))
         make_plot(
@@ -1624,8 +1671,9 @@ if __name__ == "__main__":
     if "compare_tx5_tune" in sys.argv or "all_figs" in sys.argv:
         er_dir = "results/taxi_env/5/103_tx5_er_tune"
         bl_dir = "results/taxi_env/5/104_tx5_baselines"
+        er_best = _ER_BEST_OVERRIDE if _ER_BEST_OVERRIDE is not None else TX5_ER_BEST
         filenames = []
-        for alg, fname in TX5_ER_BEST.items():
+        for alg, fname in er_best.items():
             filenames.append("{er_dir}/{alg}/{fname}".format(er_dir=er_dir, alg=alg, fname=fname))
         filenames += glob.glob("{bl_dir}/*/eval_*.csv".format(bl_dir=bl_dir))
         make_plot(

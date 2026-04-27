@@ -378,45 +378,88 @@ this — if you fork or copy them, keep that line.
 
 ---
 
-## 9. Quick reference — full command sequence
+## 9. Automation — `run_experiment.py`
 
-Frozen Lake 8×12:
-
-```bash
-make thts-run-toy-env
-./thts-run-toy-env 063_fl12_er_tune
-./thts-run-toy-env 064_fl12_baselines
-python find_best_hyperparams.py results/frozen_lake_env/FL_8x12/063_fl12_er_tune
-# → paste each winner's eval_*.csv basename into FL12_ER_BEST in plot.py
-python plot.py compare_fl12_tune
-# (optional) to also evaluate ER on the held-out test map:
-# → edit run_id.cpp/run_id.h to add 065_fl12_er_test with the winners
-# make thts-run-toy-env && ./thts-run-toy-env 065_fl12_er_test
-```
-
-Sailing 6×6:
+For end-to-end execution there's a Python orchestrator that wires Steps 1–6 together:
 
 ```bash
-./thts-run-toy-env 093_s6_er_tune
-./thts-run-toy-env 094_s6_baselines
-python find_best_hyperparams.py results/sailing_env/6/093_s6_er_tune
-# → paste winners into S6_ER_BEST in plot.py
-python plot.py compare_s6_tune
+# full pipeline for one env (~hours-to-days for the tune step)
+python run_experiment.py fl12
+
+# all three envs sequentially
+python run_experiment.py fl12 s6 tx5
+
+# already ran tune+baselines; just refresh the plot
+python run_experiment.py fl12 --plot-only
+
+# already built thts-run-toy-env
+python run_experiment.py s6 --skip-build
 ```
 
-Taxi 5×5:
+What it does per env:
+
+1. `make -j4 thts-run-toy-env` (unless `--skip-build`)
+2. `./thts-run-toy-env <tune_expr>` (unless `--skip-tune` or `--plot-only`)
+3. `./thts-run-toy-env <baseline_expr>` (unless `--skip-baselines` or `--plot-only`)
+4. Imports `find_best_hyperparams.find_best_hyperparams` in-process to pick
+   the top-1 winner per ER algorithm.
+5. Writes `<results_root>/<tune_expr>/best_er_params.json` with the full
+   top-K results per algorithm (file path, basename, mean, spread, num_reps,
+   params).
+6. Invokes `python plot.py compare_<env>_tune --er-best-json=<path>` so the
+   plot uses the freshly-picked winners (no need to hand-edit `plot.py`).
+
+The flag `--er-best-json=PATH` works on `plot.py` directly too:
 
 ```bash
-./thts-run-toy-env 103_tx5_er_tune
-./thts-run-toy-env 104_tx5_baselines
-python find_best_hyperparams.py results/taxi_env/5/103_tx5_er_tune
-# → paste winners into TX5_ER_BEST in plot.py
-python plot.py compare_tx5_tune
+python find_best_hyperparams.py results/frozen_lake_env/FL_8x12/063_fl12_er_tune \
+    --json-out fl12_winners.json
+python plot.py compare_fl12_tune --er-best-json=fl12_winners.json
 ```
+
+This is what the orchestrator does internally; useful if you want to inspect
+the JSON before plotting, or share winners across machines.
+
+The hardcoded `FL12_ER_BEST` / `S6_ER_BEST` / `TX5_ER_BEST` dicts inside
+`plot.py` are still consulted as a fallback when no JSON is supplied — useful
+if you want to cherry-pick #2 over #1 (e.g. when winners are within noise of
+each other).
+
+> The orchestrator does not run anything in the background. Tune steps may
+> take hours-to-days; launch under `nohup` / `tmux` / `screen` so the run
+> survives a disconnected SSH session.
 
 ---
 
-## 10. Where to look in the code
+## 10. Quick reference
+
+Automated path (recommended):
+
+```bash
+python run_experiment.py fl12 s6 tx5      # full pipeline, all three envs
+python run_experiment.py fl12 --plot-only # refresh plot from existing results
+```
+
+Manual path (if you need to drive a single step):
+
+```bash
+make thts-run-toy-env
+./thts-run-toy-env 063_fl12_er_tune                                # 1107 RunIDs, slow
+./thts-run-toy-env 064_fl12_baselines                              # 9 RunIDs, fast
+python find_best_hyperparams.py \
+    results/frozen_lake_env/FL_8x12/063_fl12_er_tune \
+    --json-out results/frozen_lake_env/FL_8x12/063_fl12_er_tune/best_er_params.json
+python plot.py compare_fl12_tune \
+    --er-best-json=results/frozen_lake_env/FL_8x12/063_fl12_er_tune/best_er_params.json
+```
+
+Optional follow-up — evaluate the tuned ER on the held-out test instance
+(see Step 5 above): add `065_fl12_er_test` (or `095_s6_er_test`,
+`105_tx5_er_test`) to `run_id.cpp`, then run it the same way.
+
+---
+
+## 11. Where to look in the code
 
 - `src/toy_envs/run_id.cpp` — every expr_id branch, hyperparameter grids.
 - `include/toy_envs/run_id.h` — string IDs for envs, instances, algorithms,
