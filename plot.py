@@ -82,7 +82,8 @@ def make_plot_df(
     font_scale=1.2,
     figsize=None,
     linewidth=2.5,
-    dpi=200):
+    dpi=200,
+    legend_fontsize=None):
     """General helper for plotting in our style."""
 
     if figsize is None:
@@ -139,7 +140,11 @@ def make_plot_df(
         for x in vertical_lines:
             plt.axvline(x=x, color='k', linestyle='--')
     if legend_lab is not None:
-        plt.legend(loc="lower right", title=legend_lab)
+        legend_kw = dict(loc="lower right", title=legend_lab)
+        if legend_fontsize is not None:
+            legend_kw["prop"] = {"size": legend_fontsize}
+            legend_kw["title_fontsize"] = legend_fontsize
+        plt.legend(**legend_kw)
     if y_axis_range is not None:
         plt.gca().set_ylim(y_axis_range)
     if not use_legend:
@@ -239,6 +244,7 @@ def make_plot(
     font_scale=1.2,
     linewidth=2.5,
     dpi=200,
+    legend_fontsize=None,
     er_vs_baseline_mode=False):
     """Read in data, preprocess, and then call make plot"""
 
@@ -383,9 +389,9 @@ def make_plot(
         df = df[df["num_trials"] <= num_trials_truncate]
 
     make_plot_df(
-        df=df, 
-        xaxis_key="num_trials", 
-        yaxis_key="mc_value_estimate", 
+        df=df,
+        xaxis_key="num_trials",
+        yaxis_key="mc_value_estimate",
         hue_key=hue_key,
         palette=palette,
         style_key=hue_key,
@@ -404,8 +410,9 @@ def make_plot(
         font_scale=font_scale,
         figsize=figsize,
         linewidth=linewidth,
-        dpi=dpi)
-    
+        dpi=dpi,
+        legend_fontsize=legend_fontsize)
+
     if not sep_eps_plots:
         return
 
@@ -414,9 +421,9 @@ def make_plot(
         eps_df = df[df['eps'] == eps]
         eps_filename = plot_filename.format(eps=eps)
         make_plot_df(
-            df=eps_df, 
-            xaxis_key="num_trials", 
-            yaxis_key="mc_value_estimate", 
+            df=eps_df,
+            xaxis_key="num_trials",
+            yaxis_key="mc_value_estimate",
             hue_key=hue_key,
             palette=palette,
             style_key=hue_key,
@@ -435,9 +442,10 @@ def make_plot(
             font_scale=font_scale,
             figsize=figsize,
             linewidth=linewidth,
-            dpi=dpi)
+            dpi=dpi,
+            legend_fontsize=legend_fontsize)
 
-    
+
 def negative_log_transform(x):
     # EPS = 1e-10
     # if x < EPS: x = EPS
@@ -1632,6 +1640,8 @@ if __name__ == "__main__":
             hue_key="pretty_alg_id",
             title="Frozen Lake 8x12 -- ER vs baselines",
             yaxis_lab="Monte-Carlo Value Estimate",
+            figsize=(14, 8),
+            legend_fontsize=8,
             er_vs_baseline_mode=True)
 
     if "compare_fl12_test" in sys.argv or "all_figs" in sys.argv:
@@ -1646,6 +1656,8 @@ if __name__ == "__main__":
             hue_key="pretty_alg_id",
             title="Frozen Lake 8x12 (test) -- ER vs baselines",
             yaxis_lab="Monte-Carlo Value Estimate",
+            figsize=(14, 8),
+            legend_fontsize=8,
             er_vs_baseline_mode=True)
 
     # === S6 best ER configs -- fill in from `find_best_hyperparams.py 093_s6_er_tune` ===
@@ -1671,6 +1683,8 @@ if __name__ == "__main__":
             hue_key="pretty_alg_id",
             title="Sailing 6x6 -- ER vs baselines",
             yaxis_lab="Monte-Carlo Value Estimate",
+            figsize=(14, 8),
+            legend_fontsize=8,
             er_vs_baseline_mode=True)
 
     # === TX5 best ER configs -- fill in from `find_best_hyperparams.py 103_tx5_er_tune` ===
@@ -1696,6 +1710,8 @@ if __name__ == "__main__":
             hue_key="pretty_alg_id",
             title="Taxi 5x5 -- ER vs baselines",
             yaxis_lab="Monte-Carlo Value Estimate",
+            figsize=(14, 8),
+            legend_fontsize=8,
             er_vs_baseline_mode=True)
 
 
