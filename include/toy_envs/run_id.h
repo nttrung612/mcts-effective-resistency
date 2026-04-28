@@ -66,6 +66,8 @@ static const std::string FL12_061_ER_MENTS_SMOKE = "061_fl12_er_ments_smoke";
 static const std::string FL12_062_REQUESTED_ALGS = "062_fl12_requested_algs";
 static const std::string FL12_063_ER_TUNE = "063_fl12_er_tune";
 static const std::string FL12_064_BASELINES = "064_fl12_baselines";
+static const std::string FL12_065_ER_TEST = "065_fl12_er_test";
+static const std::string FL12_066_BASELINES_TEST = "066_fl12_baselines_test";
 static const std::string FL16_050_TEST = "050_fl16_test";
 
 static const std::string S6_091_HPS = "091_s6_hps";

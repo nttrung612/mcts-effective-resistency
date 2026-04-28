@@ -1634,6 +1634,20 @@ if __name__ == "__main__":
             yaxis_lab="Monte-Carlo Value Estimate",
             er_vs_baseline_mode=True)
 
+    if "compare_fl12_test" in sys.argv or "all_figs" in sys.argv:
+        er_dir = "results/frozen_lake_env/FL_8x12_test/065_fl12_er_test"
+        bl_dir = "results/frozen_lake_env/FL_8x12_test/066_fl12_baselines_test"
+        # Each ER algorithm has exactly one config in the test expr (no grid sweep), so glob all.
+        filenames = glob.glob("{er_dir}/*/eval_*.csv".format(er_dir=er_dir))
+        filenames += glob.glob("{bl_dir}/*/eval_*.csv".format(bl_dir=bl_dir))
+        make_plot(
+            filenames=filenames,
+            plot_filename="plots/compare_fl12_test.png",
+            hue_key="pretty_alg_id",
+            title="Frozen Lake 8x12 (test) -- ER vs baselines",
+            yaxis_lab="Monte-Carlo Value Estimate",
+            er_vs_baseline_mode=True)
+
     # === S6 best ER configs -- fill in from `find_best_hyperparams.py 093_s6_er_tune` ===
     S6_ER_BEST = {
         # "er-uct":              "eval_bias=...,er_c2=...,power_mean_p=....csv",
