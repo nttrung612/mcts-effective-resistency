@@ -451,6 +451,13 @@ def negative_log_transform(x):
     # if x < EPS: x = EPS
     return np.log(x)
 
+def _yscale_expand_high_fwd(y):
+    """Power transform y -> y^1.5 so higher values occupy more vertical space."""
+    return np.sign(y) * np.abs(y) ** 1.5
+
+def _yscale_expand_high_inv(y):
+    return np.sign(y) * np.abs(y) ** (2.0 / 3.0)
+
 def y_scale_piecwise_linear_forward(x, min_y=0.0, mid_y=0.65, scaled_y=0.1, max_y=1.0):
     """
     data is min_y -> mid_y -> max_y
@@ -1640,7 +1647,8 @@ if __name__ == "__main__":
             hue_key="pretty_alg_id",
             title="Frozen Lake 8x12 -- ER vs baselines",
             yaxis_lab="Monte-Carlo Value Estimate",
-            y_axis_range=(0.6, 1.0),
+            y_scale_transform_forward=_yscale_expand_high_fwd,
+            y_scale_transform_inverse=_yscale_expand_high_inv,
             figsize=(14, 8),
             legend_fontsize=8,
             er_vs_baseline_mode=True)
@@ -1657,7 +1665,8 @@ if __name__ == "__main__":
             hue_key="pretty_alg_id",
             title="Frozen Lake 8x12 (test) -- ER vs baselines",
             yaxis_lab="Monte-Carlo Value Estimate",
-            y_axis_range=(0.6, 1.0),
+            y_scale_transform_forward=_yscale_expand_high_fwd,
+            y_scale_transform_inverse=_yscale_expand_high_inv,
             figsize=(14, 8),
             legend_fontsize=8,
             er_vs_baseline_mode=True)

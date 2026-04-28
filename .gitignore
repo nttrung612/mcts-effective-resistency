@@ -1,6 +1,7 @@
 # Folders in other branches
 py
 .venv
+__pycache__
 
 # Outputs
 thts-test
