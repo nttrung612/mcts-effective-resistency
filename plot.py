@@ -1649,6 +1649,7 @@ if __name__ == "__main__":
             yaxis_lab="Monte-Carlo Value Estimate",
             y_scale_transform_forward=_yscale_expand_high_fwd,
             y_scale_transform_inverse=_yscale_expand_high_inv,
+            num_trials_truncate=120000,
             figsize=(14, 8),
             legend_fontsize=8,
             er_vs_baseline_mode=True)
@@ -1667,6 +1668,7 @@ if __name__ == "__main__":
             yaxis_lab="Monte-Carlo Value Estimate",
             y_scale_transform_forward=_yscale_expand_high_fwd,
             y_scale_transform_inverse=_yscale_expand_high_inv,
+            num_trials_truncate=120000,
             figsize=(14, 8),
             legend_fontsize=8,
             er_vs_baseline_mode=True)
