@@ -1640,6 +1640,7 @@ if __name__ == "__main__":
             hue_key="pretty_alg_id",
             title="Frozen Lake 8x12 -- ER vs baselines",
             yaxis_lab="Monte-Carlo Value Estimate",
+            y_axis_range=(0.6, 1.0),
             figsize=(14, 8),
             legend_fontsize=8,
             er_vs_baseline_mode=True)
@@ -1656,6 +1657,7 @@ if __name__ == "__main__":
             hue_key="pretty_alg_id",
             title="Frozen Lake 8x12 (test) -- ER vs baselines",
             yaxis_lab="Monte-Carlo Value Estimate",
+            y_axis_range=(0.6, 1.0),
             figsize=(14, 8),
             legend_fontsize=8,
             er_vs_baseline_mode=True)
