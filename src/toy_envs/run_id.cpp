@@ -2366,6 +2366,218 @@ namespace thts {
             return run_ids;
         }
 
+        // expr id: S6_095_ER_TEST
+        // Evaluates the top-1 tuned ER hyperparameters from 093_s6_er_tune on the held-out
+        // S_6_test instance. One fixed config per algorithm -- no grid sweep.
+        // TODO: replace placeholder hyperparameters with the winning configs from
+        //       `python find_best_hyperparams.py results/sailing_env/6/093_s6_er_tune` once tuning finishes.
+        if (expr_id == S6_095_ER_TEST) {
+            string env_id = SAILING_ENV_ID;
+            string env_instance_id = S_6_TEST_ID;
+            int num_trials = 150000;
+            int max_trial_length = 50;
+            int trials_log_delta = 250;
+            int mc_eval_trials_delta = 250;
+            int rollouts_per_mc_eval = 250;
+            int num_repeats = 10;
+            int num_threads = 16;
+            int eval_threads = 16;
+
+            double default_q_value = -200.0;
+
+            // ER-UCT (placeholder hyperparameters)
+            run_ids->push_back(RunID(env_id, env_instance_id, expr_id, ALG_ID_ER_UCT,
+                {{PARAMS_ID_UCT_BIAS,         UctManagerArgs::USE_AUTO_BIAS},
+                 {PARAMS_ID_UCT_POWER_MEAN_P, 1.0},
+                 {PARAMS_ID_UCT_ER_C2,        1.0}},
+                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+
+            // ER-FIXED-DEPTH-UCT (placeholder hyperparameters)
+            run_ids->push_back(RunID(env_id, env_instance_id, expr_id, ALG_ID_ER_FIXED_DEPTH_UCT,
+                {{PARAMS_ID_UCT_BIAS,         UctManagerArgs::USE_AUTO_BIAS},
+                 {PARAMS_ID_UCT_POWER_MEAN_P, 1.0},
+                 {PARAMS_ID_UCT_ER_C2,        1.0}},
+                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+
+            // ER-MENTS (placeholder hyperparameters)
+            run_ids->push_back(RunID(env_id, env_instance_id, expr_id, ALG_ID_ER_MENTS,
+                {{PARAMS_ID_MENTS_TEMP,             0.001},
+                 {PARAMS_ID_MENTS_EPSILON,          1.0},
+                 {PARAMS_ID_MENTS_DEFAULT_Q_VALUE,  default_q_value},
+                 {PARAMS_ID_UCT_ER_C2,              1.0}},
+                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+
+            // ER-RENTS (placeholder hyperparameters)
+            run_ids->push_back(RunID(env_id, env_instance_id, expr_id, ALG_ID_ER_RENTS,
+                {{PARAMS_ID_MENTS_TEMP,             0.001},
+                 {PARAMS_ID_MENTS_EPSILON,          2.0},
+                 {PARAMS_ID_MENTS_DEFAULT_Q_VALUE,  default_q_value},
+                 {PARAMS_ID_UCT_ER_C2,              1.0}},
+                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+
+            // ER-TENTS (placeholder hyperparameters)
+            run_ids->push_back(RunID(env_id, env_instance_id, expr_id, ALG_ID_ER_TENTS,
+                {{PARAMS_ID_MENTS_TEMP,             0.001},
+                 {PARAMS_ID_MENTS_EPSILON,          1.0},
+                 {PARAMS_ID_MENTS_DEFAULT_Q_VALUE,  default_q_value},
+                 {PARAMS_ID_UCT_ER_C2,              1.0}},
+                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+
+            return run_ids;
+        }
+
+        // expr id: S6_096_BASELINES_TEST
+        // Baselines on the S_6_test held-out instance, sized to match S6_095_ER_TEST
+        // for fair apples-to-apples comparison (same num_trials, num_repeats, num_threads).
+        // MENTS-family algorithms set default_q_value = -200 to match the S6_094_BASELINES convention.
+        if (expr_id == S6_096_BASELINES_TEST) {
+            string env_id = SAILING_ENV_ID;
+            string env_instance_id = S_6_TEST_ID;
+            int num_trials = 150000;
+            int max_trial_length = 50;
+            int trials_log_delta = 250;
+            int mc_eval_trials_delta = 250;
+            int rollouts_per_mc_eval = 250;
+            int num_repeats = 10;
+            int num_threads = 16;
+            int eval_threads = 16;
+
+            double default_q_value = -200.0;
+
+            vector<string> alg_ids = { ALG_ID_UCT, ALG_ID_FIXED_DEPTH_UCT, ALG_ID_PUCT, ALG_ID_MENTS, ALG_ID_RENTS, ALG_ID_TENTS, ALG_ID_DENTS, ALG_ID_DBMENTS, ALG_ID_EST };
+            for (string alg_id : alg_ids) {
+                unordered_map<string,double> alg_params;
+                if (alg_id == ALG_ID_UCT || alg_id == ALG_ID_FIXED_DEPTH_UCT || alg_id == ALG_ID_PUCT) {
+                    alg_params[PARAMS_ID_UCT_BIAS] = UctManagerArgs::USE_AUTO_BIAS;
+                    alg_params[PARAMS_ID_UCT_POWER_MEAN_P] = 1.0;
+                } else if (alg_id == ALG_ID_EST) {
+                    alg_params[PARAMS_ID_MENTS_TEMP] = 0.1;
+                    alg_params[PARAMS_ID_MENTS_EPSILON] = 2.0;
+                    alg_params[PARAMS_ID_MENTS_DEFAULT_Q_VALUE] = default_q_value;
+                } else if (alg_id == ALG_ID_DENTS || alg_id == ALG_ID_DBMENTS) {
+                    alg_params[PARAMS_ID_MENTS_TEMP] = 0.1;
+                    alg_params[PARAMS_ID_MENTS_EPSILON] = 1.0;
+                    alg_params[PARAMS_ID_MENTS_DEFAULT_Q_VALUE] = default_q_value;
+                    if (alg_id == ALG_ID_DENTS) alg_params[PARAMS_ID_DENTS_TEMP] = 1.0;
+                } else {
+                    double temp = 0.001;
+                    double eps = 1.0;
+                    if (alg_id == ALG_ID_RENTS) eps = 2.0;
+                    alg_params[PARAMS_ID_MENTS_TEMP] = temp;
+                    alg_params[PARAMS_ID_MENTS_EPSILON] = eps;
+                    alg_params[PARAMS_ID_MENTS_DEFAULT_Q_VALUE] = default_q_value;
+                }
+                run_ids->push_back(RunID(env_id, env_instance_id, expr_id, alg_id, alg_params, num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta, rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+            }
+            return run_ids;
+        }
+
+        // expr id: TX5_105_ER_TEST
+        // Evaluates the top-1 tuned ER hyperparameters from 103_tx5_er_tune on the held-out
+        // TX_5_test instance. One fixed config per algorithm -- no grid sweep.
+        // TODO: replace placeholder hyperparameters with the winning configs from
+        //       `python find_best_hyperparams.py results/taxi_env/5/103_tx5_er_tune` once tuning finishes.
+        if (expr_id == TX5_105_ER_TEST) {
+            string env_id = TAXI_ENV_ID;
+            string env_instance_id = TX_5_TEST_ID;
+            int num_trials = 150000;
+            int max_trial_length = 200;
+            int trials_log_delta = 250;
+            int mc_eval_trials_delta = 250;
+            int rollouts_per_mc_eval = 100;
+            int num_repeats = 10;
+            int num_threads = 16;
+            int eval_threads = 16;
+
+            // ER-UCT (placeholder hyperparameters)
+            run_ids->push_back(RunID(env_id, env_instance_id, expr_id, ALG_ID_ER_UCT,
+                {{PARAMS_ID_UCT_BIAS,         UctManagerArgs::USE_AUTO_BIAS},
+                 {PARAMS_ID_UCT_POWER_MEAN_P, 1.0},
+                 {PARAMS_ID_UCT_ER_C2,        1.0}},
+                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+
+            // ER-FIXED-DEPTH-UCT (placeholder hyperparameters)
+            run_ids->push_back(RunID(env_id, env_instance_id, expr_id, ALG_ID_ER_FIXED_DEPTH_UCT,
+                {{PARAMS_ID_UCT_BIAS,         UctManagerArgs::USE_AUTO_BIAS},
+                 {PARAMS_ID_UCT_POWER_MEAN_P, 1.0},
+                 {PARAMS_ID_UCT_ER_C2,        1.0}},
+                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+
+            // ER-MENTS (placeholder hyperparameters)
+            run_ids->push_back(RunID(env_id, env_instance_id, expr_id, ALG_ID_ER_MENTS,
+                {{PARAMS_ID_MENTS_TEMP,    0.001},
+                 {PARAMS_ID_MENTS_EPSILON, 1.0},
+                 {PARAMS_ID_UCT_ER_C2,     1.0}},
+                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+
+            // ER-RENTS (placeholder hyperparameters)
+            run_ids->push_back(RunID(env_id, env_instance_id, expr_id, ALG_ID_ER_RENTS,
+                {{PARAMS_ID_MENTS_TEMP,    0.001},
+                 {PARAMS_ID_MENTS_EPSILON, 2.0},
+                 {PARAMS_ID_UCT_ER_C2,     1.0}},
+                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+
+            // ER-TENTS (placeholder hyperparameters)
+            run_ids->push_back(RunID(env_id, env_instance_id, expr_id, ALG_ID_ER_TENTS,
+                {{PARAMS_ID_MENTS_TEMP,    0.001},
+                 {PARAMS_ID_MENTS_EPSILON, 1.0},
+                 {PARAMS_ID_UCT_ER_C2,     1.0}},
+                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+
+            return run_ids;
+        }
+
+        // expr id: TX5_106_BASELINES_TEST
+        // Baselines on the TX_5_test held-out instance, sized to match TX5_105_ER_TEST
+        // for fair apples-to-apples comparison (same num_trials, num_repeats, num_threads).
+        if (expr_id == TX5_106_BASELINES_TEST) {
+            string env_id = TAXI_ENV_ID;
+            string env_instance_id = TX_5_TEST_ID;
+            int num_trials = 150000;
+            int max_trial_length = 200;
+            int trials_log_delta = 250;
+            int mc_eval_trials_delta = 250;
+            int rollouts_per_mc_eval = 100;
+            int num_repeats = 10;
+            int num_threads = 16;
+            int eval_threads = 16;
+
+            vector<string> alg_ids = { ALG_ID_UCT, ALG_ID_FIXED_DEPTH_UCT, ALG_ID_PUCT, ALG_ID_MENTS, ALG_ID_RENTS, ALG_ID_TENTS, ALG_ID_DENTS, ALG_ID_DBMENTS, ALG_ID_EST };
+            for (string alg_id : alg_ids) {
+                unordered_map<string,double> alg_params;
+                if (alg_id == ALG_ID_UCT || alg_id == ALG_ID_FIXED_DEPTH_UCT || alg_id == ALG_ID_PUCT) {
+                    alg_params[PARAMS_ID_UCT_BIAS] = UctManagerArgs::USE_AUTO_BIAS;
+                    alg_params[PARAMS_ID_UCT_POWER_MEAN_P] = 1.0;
+                } else if (alg_id == ALG_ID_EST) {
+                    alg_params[PARAMS_ID_MENTS_TEMP] = 0.1;
+                    alg_params[PARAMS_ID_MENTS_EPSILON] = 2.0;
+                } else if (alg_id == ALG_ID_DENTS || alg_id == ALG_ID_DBMENTS) {
+                    alg_params[PARAMS_ID_MENTS_TEMP] = 0.1;
+                    alg_params[PARAMS_ID_MENTS_EPSILON] = 1.0;
+                    if (alg_id == ALG_ID_DENTS) alg_params[PARAMS_ID_DENTS_TEMP] = 1.0;
+                } else {
+                    double temp = 0.001;
+                    double eps = 1.0;
+                    if (alg_id == ALG_ID_RENTS) eps = 2.0;
+                    alg_params[PARAMS_ID_MENTS_TEMP] = temp;
+                    alg_params[PARAMS_ID_MENTS_EPSILON] = eps;
+                    alg_params[PARAMS_ID_MENTS_POWER_MEAN_P] = 1.0;
+                }
+                run_ids->push_back(RunID(env_id, env_instance_id, expr_id, alg_id, alg_params, num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta, rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+            }
+            return run_ids;
+        }
+
         throw runtime_error("Error in get_run_ids_from_expr_id");
     }
 
