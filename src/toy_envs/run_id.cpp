@@ -2389,42 +2389,42 @@ namespace thts {
             run_ids->push_back(RunID(env_id, env_instance_id, expr_id, ALG_ID_ER_UCT,
                 {{PARAMS_ID_UCT_BIAS,         UctManagerArgs::USE_AUTO_BIAS},
                  {PARAMS_ID_UCT_POWER_MEAN_P, 1.0},
-                 {PARAMS_ID_UCT_ER_C2,        1.0}},
+                 {PARAMS_ID_UCT_ER_C2,        0.1}},
                 num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
                 rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
 
             // ER-FIXED-DEPTH-UCT (placeholder hyperparameters)
             run_ids->push_back(RunID(env_id, env_instance_id, expr_id, ALG_ID_ER_FIXED_DEPTH_UCT,
                 {{PARAMS_ID_UCT_BIAS,         UctManagerArgs::USE_AUTO_BIAS},
-                 {PARAMS_ID_UCT_POWER_MEAN_P, 1.0},
-                 {PARAMS_ID_UCT_ER_C2,        1.0}},
+                 {PARAMS_ID_UCT_POWER_MEAN_P, 4.0},
+                 {PARAMS_ID_UCT_ER_C2,        3.0}},
                 num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
                 rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
 
             // ER-MENTS (placeholder hyperparameters)
             run_ids->push_back(RunID(env_id, env_instance_id, expr_id, ALG_ID_ER_MENTS,
-                {{PARAMS_ID_MENTS_TEMP,             0.001},
-                 {PARAMS_ID_MENTS_EPSILON,          1.0},
+                {{PARAMS_ID_MENTS_TEMP,             0.01},
+                 {PARAMS_ID_MENTS_EPSILON,          2.0},
                  {PARAMS_ID_MENTS_DEFAULT_Q_VALUE,  default_q_value},
-                 {PARAMS_ID_UCT_ER_C2,              1.0}},
+                 {PARAMS_ID_UCT_ER_C2,              100.0}},
                 num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
                 rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
 
             // ER-RENTS (placeholder hyperparameters)
             run_ids->push_back(RunID(env_id, env_instance_id, expr_id, ALG_ID_ER_RENTS,
-                {{PARAMS_ID_MENTS_TEMP,             0.001},
+                {{PARAMS_ID_MENTS_TEMP,             0.01},
                  {PARAMS_ID_MENTS_EPSILON,          2.0},
                  {PARAMS_ID_MENTS_DEFAULT_Q_VALUE,  default_q_value},
-                 {PARAMS_ID_UCT_ER_C2,              1.0}},
+                 {PARAMS_ID_UCT_ER_C2,              0.01}},
                 num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
                 rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
 
             // ER-TENTS (placeholder hyperparameters)
             run_ids->push_back(RunID(env_id, env_instance_id, expr_id, ALG_ID_ER_TENTS,
-                {{PARAMS_ID_MENTS_TEMP,             0.001},
-                 {PARAMS_ID_MENTS_EPSILON,          1.0},
+                {{PARAMS_ID_MENTS_TEMP,             0.5},
+                 {PARAMS_ID_MENTS_EPSILON,          2.0},
                  {PARAMS_ID_MENTS_DEFAULT_Q_VALUE,  default_q_value},
-                 {PARAMS_ID_UCT_ER_C2,              1.0}},
+                 {PARAMS_ID_UCT_ER_C2,              0.3}},
                 num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
                 rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
 
