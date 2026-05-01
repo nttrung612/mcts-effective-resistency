@@ -1700,6 +1700,22 @@ if __name__ == "__main__":
             legend_fontsize=8,
             er_vs_baseline_mode=True)
 
+    if "compare_s6_test" in sys.argv or "all_figs" in sys.argv:
+        er_dir = "results/sailing_env/6_test/095_s6_er_test"
+        bl_dir = "results/sailing_env/6_test/096_s6_baselines_test"
+        # Each ER algorithm has exactly one config in the test expr (no grid sweep), so glob all.
+        filenames = glob.glob("{er_dir}/*/eval_*.csv".format(er_dir=er_dir))
+        filenames += glob.glob("{bl_dir}/*/eval_*.csv".format(bl_dir=bl_dir))
+        make_plot(
+            filenames=filenames,
+            plot_filename="plots/compare_s6_test.png",
+            hue_key="pretty_alg_id",
+            title="Sailing 6x6 (test) -- ER vs baselines",
+            yaxis_lab="Monte-Carlo Value Estimate",
+            figsize=(14, 8),
+            legend_fontsize=8,
+            er_vs_baseline_mode=True)
+
     # === TX5 best ER configs -- fill in from `find_best_hyperparams.py 103_tx5_er_tune` ===
     TX5_ER_BEST = {
         # "er-uct":              "eval_bias=...,er_c2=...,power_mean_p=....csv",
@@ -1722,6 +1738,22 @@ if __name__ == "__main__":
             plot_filename="plots/compare_tx5_tune.png",
             hue_key="pretty_alg_id",
             title="Taxi 5x5 -- ER vs baselines",
+            yaxis_lab="Monte-Carlo Value Estimate",
+            figsize=(14, 8),
+            legend_fontsize=8,
+            er_vs_baseline_mode=True)
+
+    if "compare_tx5_test" in sys.argv or "all_figs" in sys.argv:
+        er_dir = "results/taxi_env/5_test/105_tx5_er_test"
+        bl_dir = "results/taxi_env/5_test/106_tx5_baselines_test"
+        # Each ER algorithm has exactly one config in the test expr (no grid sweep), so glob all.
+        filenames = glob.glob("{er_dir}/*/eval_*.csv".format(er_dir=er_dir))
+        filenames += glob.glob("{bl_dir}/*/eval_*.csv".format(bl_dir=bl_dir))
+        make_plot(
+            filenames=filenames,
+            plot_filename="plots/compare_tx5_test.png",
+            hue_key="pretty_alg_id",
+            title="Taxi 5x5 (test) -- ER vs baselines",
             yaxis_lab="Monte-Carlo Value Estimate",
             figsize=(14, 8),
             legend_fontsize=8,
