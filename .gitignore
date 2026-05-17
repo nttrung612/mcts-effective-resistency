@@ -2,6 +2,7 @@
 py
 .venv
 __pycache__
+docs/
 
 # Outputs
 thts-test

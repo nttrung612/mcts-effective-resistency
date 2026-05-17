@@ -67,40 +67,6 @@ namespace thts {
     }
 
     /**
-     * Int to string with prepended zeros
-    */
-    string int_to_string_padded(int num, int pad_size=3) {
-        stringstream ss;
-        ss << setfill('0') << setw(pad_size) << num;
-        return ss.str();
-    }
-
-    /**
-     * Returns the filename for the logger results file
-    */
-    string get_logger_results_filename(RunID& run_id, int replicate) {
-        stringstream ss;
-        ss << get_results_dir(run_id)
-            << "log_"
-            << get_params_string_helper(run_id) << "_"
-            << int_to_string_padded(replicate)
-            << ".csv";
-        return ss.str();
-    }
-
-    /**
-     * Returns the filename for the mc eval results file
-    */
-    string get_tree_filename(RunID& run_id, int replicate) {
-        stringstream ss;
-        ss << get_results_dir(run_id)
-            << "tree_"
-            << get_params_string_helper(run_id)
-            << ".txt";
-        return ss.str();
-    }
-
-    /**
      * Writes the param header to a file
     */
     void write_param_header_to_file(RunID& run_id, ofstream& out_file) {
@@ -216,20 +182,6 @@ namespace thts {
                 write_eval_line(eval_file, replicate, trials_run, mean, stddev);
             }
 
-            // Create + write logger output to file
-            string logger_filename = get_logger_results_filename(run_id, replicate);
-            ofstream logger_file;
-            logger_file.open(logger_filename, ios::out);// | ios::app);
-            write_param_header_to_file(run_id, logger_file);
-            logger->write_to_ostream(logger_file);
-            logger_file.close();
-
-            // Write tree to file
-            string tree_filename = get_tree_filename(run_id, replicate);
-            ofstream tree_file;
-            tree_file.open(tree_filename, ios::out);
-            tree_file << root_node->get_pretty_print_string(4) << endl;
-            tree_file.close();
             }
 
             eval_file.flush();
