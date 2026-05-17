@@ -1904,7 +1904,7 @@ namespace thts {
             string env_id = TAXI_ENV_ID;
             string env_instance_id = TX_5_ID;
             int num_trials = 200000;
-            int max_trial_length = 200;
+            int max_trial_length = 50;
             int trials_log_delta = 250;
             int mc_eval_trials_delta = 250;
             int rollouts_per_mc_eval = 100;
@@ -1983,7 +1983,7 @@ namespace thts {
             string env_id = TAXI_ENV_ID;
             string env_instance_id = TX_5_TEST_ID;
             int num_trials = 250000;
-            int max_trial_length = 200;
+            int max_trial_length = 50;
             int trials_log_delta = 250;
             int mc_eval_trials_delta = 250;
             int rollouts_per_mc_eval = 200;
@@ -2054,7 +2054,7 @@ namespace thts {
             string env_id = TAXI_ENV_ID;
             string env_instance_id = TX_5_ID;
             int num_trials = 150000;
-            int max_trial_length = 200;
+            int max_trial_length = 50;
             int trials_log_delta = 250;
             int mc_eval_trials_delta = 250;
             int rollouts_per_mc_eval = 100;
@@ -2227,7 +2227,7 @@ namespace thts {
             string env_id = TAXI_ENV_ID;
             string env_instance_id = TX_5_ID;
             int num_trials = 150000;
-            int max_trial_length = 200;
+            int max_trial_length = 50;
             int trials_log_delta = 250;
             int mc_eval_trials_delta = 250;
             int rollouts_per_mc_eval = 100;
@@ -2486,7 +2486,7 @@ namespace thts {
             string env_id = TAXI_ENV_ID;
             string env_instance_id = TX_5_TEST_ID;
             int num_trials = 150000;
-            int max_trial_length = 200;
+            int max_trial_length = 50;
             int trials_log_delta = 250;
             int mc_eval_trials_delta = 250;
             int rollouts_per_mc_eval = 100;
@@ -2544,7 +2544,7 @@ namespace thts {
             string env_id = TAXI_ENV_ID;
             string env_instance_id = TX_5_TEST_ID;
             int num_trials = 150000;
-            int max_trial_length = 200;
+            int max_trial_length = 50;
             int trials_log_delta = 250;
             int mc_eval_trials_delta = 250;
             int rollouts_per_mc_eval = 100;
