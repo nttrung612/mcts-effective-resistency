@@ -78,16 +78,27 @@ ENV_CONFIGS: Dict[str, Dict[str, str]] = {
         "results_root":  "results/taxi_env/5",
         "plot_tag":      "compare_tx5_tune",
     },
-    # HPS-only entries (non-ER baselines hyperparameter search).
-    # No paired baseline run, no plot; just sweep + winners JSON.
+    # HPS-only entries (single hyperparameter sweep, no paired baseline, no plot).
+    # `<env>`     -> non-ER baselines HPS
+    # `<env>_er`  -> ER-augmented variants HPS (same env / instance)
     "fl16": {
         "label":         "Frozen Lake 8x16 (baselines HPS)",
         "tune_expr":     "071_fl16_hps",
         "results_root":  "results/frozen_lake_env/FL_8x16_test",
     },
+    "fl16_er": {
+        "label":         "Frozen Lake 8x16 (ER HPS)",
+        "tune_expr":     "073_fl16_er_tune",
+        "results_root":  "results/frozen_lake_env/FL_8x16_test",
+    },
     "s10": {
         "label":         "Sailing 10x10 (baselines HPS)",
         "tune_expr":     "121_s10_hps",
+        "results_root":  "results/sailing_env/10",
+    },
+    "s10_er": {
+        "label":         "Sailing 10x10 (ER HPS)",
+        "tune_expr":     "123_s10_er_tune",
         "results_root":  "results/sailing_env/10",
     },
 }

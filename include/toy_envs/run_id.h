@@ -82,9 +82,11 @@ static const std::string FL12_065_ER_TEST = "065_fl12_er_test";
 static const std::string FL12_066_BASELINES_TEST = "066_fl12_baselines_test";
 static const std::string FL16_050_TEST = "050_fl16_test";
 static const std::string FL16_071_HPS = "071_fl16_hps";
+static const std::string FL16_073_ER_TUNE = "073_fl16_er_tune";
 
 static const std::string S6_091_HPS = "091_s6_hps";
 static const std::string S10_121_HPS = "121_s10_hps";
+static const std::string S10_123_ER_TUNE = "123_s10_er_tune";
 static const std::string S6_092_TEST = "092_s6_test";
 static const std::string S6_093_ER_TUNE = "093_s6_er_tune";
 static const std::string S6_094_BASELINES = "094_s6_baselines";

@@ -2880,7 +2880,8 @@ namespace thts {
             const string& env_instance_id,
             int num_trials,
             int max_trial_length,
-            int rollouts_per_mc_eval)
+            int rollouts_per_mc_eval,
+            double default_q_value = 0.0)
         {
             int trials_log_delta = 200;
             int mc_eval_trials_delta = 200;
@@ -2922,7 +2923,8 @@ namespace thts {
                             unordered_map<string,double> alg_params = {
                                 {PARAMS_ID_MENTS_TEMP, temp},
                                 {PARAMS_ID_MENTS_EPSILON, eps},
-                                {PARAMS_ID_UCT_ER_C2, er_c2}
+                                {PARAMS_ID_UCT_ER_C2, er_c2},
+                                {PARAMS_ID_MENTS_DEFAULT_Q_VALUE, default_q_value}
                             };
                             run_ids->push_back(RunID(env_id, env_instance_id, expr_id, alg_id, alg_params,
                                 num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
@@ -3036,6 +3038,24 @@ namespace thts {
         // needs default_q_value = -200 to match the S6 HPS convention.
         if (expr_id == S10_121_HPS) {
             add_baselines_only_hps(SAILING_ENV_ID, S_10_ID,
+                /*num_trials=*/200000, /*max_trial_length=*/80, /*rollouts=*/250,
+                /*default_q_value=*/-200.0);
+            return run_ids;
+        }
+
+        // Frozen Lake 8x16 ER variants tune (ER-UCT, ER-FIXED-DEPTH-UCT, ER-MENTS,
+        // ER-RENTS, ER-TENTS). default_q_value = 0 since FL reward is in [0, 1].
+        if (expr_id == FL16_073_ER_TUNE) {
+            add_er_tune(FL_ENV_ID, FL_8x16_TEST,
+                /*num_trials=*/150000, /*max_trial_length=*/100, /*rollouts=*/100,
+                /*default_q_value=*/0.0);
+            return run_ids;
+        }
+
+        // Sailing 10x10 ER variants tune. default_q_value = -200 to match the S10 baselines HPS
+        // and S6 ER tune conventions for negative-reward sailing.
+        if (expr_id == S10_123_ER_TUNE) {
+            add_er_tune(SAILING_ENV_ID, S_10_ID,
                 /*num_trials=*/200000, /*max_trial_length=*/80, /*rollouts=*/250,
                 /*default_q_value=*/-200.0);
             return run_ids;
