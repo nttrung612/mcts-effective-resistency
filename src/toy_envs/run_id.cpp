@@ -4,6 +4,8 @@
 #include "toy_envs/frozen_lake_env.h"
 #include "toy_envs/sailing_env.h"
 #include "toy_envs/taxi_env.h"
+#include "toy_envs/deep_sea_env.h"
+#include "toy_envs/nchain_env.h"
 
 #include "algorithms/uct/uct_manager.h"
 #include "algorithms/uct/er_uct_decision_node.h"
@@ -130,6 +132,28 @@ namespace thts {
         if (env_id == TAXI_ENV_ID) {
             if (env_instance_id == TX_5_ID || env_instance_id == TX_5_TEST_ID) {
                 return make_shared<TaxiEnv>(5, 5);
+            } else {
+                throw runtime_error("Not implemented yet");
+            }
+        }
+
+        if (env_id == DEEP_SEA_ENV_ID) {
+            if (env_instance_id == DS_10_ID) {
+                return make_shared<DeepSeaEnv>(10);
+            } else if (env_instance_id == DS_20_ID) {
+                return make_shared<DeepSeaEnv>(20);
+            } else if (env_instance_id == DS_30_ID) {
+                return make_shared<DeepSeaEnv>(30);
+            } else {
+                throw runtime_error("Not implemented yet");
+            }
+        }
+
+        if (env_id == NCHAIN_ENV_ID) {
+            if (env_instance_id == NC_6_ID) {
+                return make_shared<NChainEnv>(6);
+            } else if (env_instance_id == NC_10_ID) {
+                return make_shared<NChainEnv>(10);
             } else {
                 throw runtime_error("Not implemented yet");
             }
@@ -2575,6 +2599,368 @@ namespace thts {
                 }
                 run_ids->push_back(RunID(env_id, env_instance_id, expr_id, alg_id, alg_params, num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta, rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
             }
+            return run_ids;
+        }
+
+        // ============================================================================
+        // Deep Sea (bsuite-style hard exploration): random policy succeeds with prob 2^{-(N-1)}.
+        // Goal +1 only at all-right path; small cost 0.01/N per right move. Optimal value
+        // upper bound is 1 - 0.01*(N-1)/N ≈ 0.99; classical UCT typically stuck near 0.
+        // ER's path-level signal keeps the all-right prefix attractive long enough to be
+        // reinforced.
+        // ============================================================================
+
+        auto run_deep_sea_baselines = [&run_ids, &expr_id](
+            const string& env_instance_id, int num_trials, int max_trial_length)
+        {
+            int trials_log_delta = 100;
+            int mc_eval_trials_delta = 100;
+            int rollouts_per_mc_eval = 50;
+            int num_repeats = 10;
+            int num_threads = 16;
+            int eval_threads = 16;
+
+            vector<string> alg_ids = { ALG_ID_UCT, ALG_ID_FIXED_DEPTH_UCT, ALG_ID_PUCT, ALG_ID_MENTS, ALG_ID_RENTS, ALG_ID_TENTS, ALG_ID_DENTS, ALG_ID_DBMENTS, ALG_ID_EST };
+            for (string alg_id : alg_ids) {
+                unordered_map<string,double> alg_params;
+                if (alg_id == ALG_ID_UCT || alg_id == ALG_ID_FIXED_DEPTH_UCT || alg_id == ALG_ID_PUCT) {
+                    alg_params[PARAMS_ID_UCT_BIAS] = UctManagerArgs::USE_AUTO_BIAS;
+                    alg_params[PARAMS_ID_UCT_POWER_MEAN_P] = 1.0;
+                } else if (alg_id == ALG_ID_EST) {
+                    alg_params[PARAMS_ID_MENTS_TEMP] = 0.1;
+                    alg_params[PARAMS_ID_MENTS_EPSILON] = 2.0;
+                } else if (alg_id == ALG_ID_DENTS || alg_id == ALG_ID_DBMENTS) {
+                    alg_params[PARAMS_ID_MENTS_TEMP] = 0.1;
+                    alg_params[PARAMS_ID_MENTS_EPSILON] = 1.0;
+                    if (alg_id == ALG_ID_DENTS) alg_params[PARAMS_ID_DENTS_TEMP] = 1.0;
+                } else {
+                    alg_params[PARAMS_ID_MENTS_TEMP] = 0.01;
+                    alg_params[PARAMS_ID_MENTS_EPSILON] = (alg_id == ALG_ID_RENTS) ? 2.0 : 1.0;
+                    alg_params[PARAMS_ID_MENTS_POWER_MEAN_P] = 1.0;
+                }
+                run_ids->push_back(RunID(DEEP_SEA_ENV_ID, env_instance_id, expr_id, alg_id, alg_params,
+                    num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                    rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+            }
+        };
+
+        auto run_deep_sea_er = [&run_ids, &expr_id](
+            const string& env_instance_id, int num_trials, int max_trial_length)
+        {
+            int trials_log_delta = 100;
+            int mc_eval_trials_delta = 100;
+            int rollouts_per_mc_eval = 50;
+            int num_repeats = 10;
+            int num_threads = 16;
+            int eval_threads = 16;
+
+            run_ids->push_back(RunID(DEEP_SEA_ENV_ID, env_instance_id, expr_id, ALG_ID_ER_UCT,
+                {{PARAMS_ID_UCT_BIAS,         UctManagerArgs::USE_AUTO_BIAS},
+                 {PARAMS_ID_UCT_POWER_MEAN_P, std::numeric_limits<double>::infinity()},
+                 {PARAMS_ID_UCT_ER_C2,        1.0}},
+                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+
+            run_ids->push_back(RunID(DEEP_SEA_ENV_ID, env_instance_id, expr_id, ALG_ID_ER_FIXED_DEPTH_UCT,
+                {{PARAMS_ID_UCT_BIAS,         UctManagerArgs::USE_AUTO_BIAS},
+                 {PARAMS_ID_UCT_POWER_MEAN_P, 1.0},
+                 {PARAMS_ID_UCT_ER_C2,        50.0}},
+                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+
+            run_ids->push_back(RunID(DEEP_SEA_ENV_ID, env_instance_id, expr_id, ALG_ID_ER_MENTS,
+                {{PARAMS_ID_MENTS_TEMP,    0.001},
+                 {PARAMS_ID_MENTS_EPSILON, 2.0},
+                 {PARAMS_ID_UCT_ER_C2,     0.05}},
+                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+
+            run_ids->push_back(RunID(DEEP_SEA_ENV_ID, env_instance_id, expr_id, ALG_ID_ER_RENTS,
+                {{PARAMS_ID_MENTS_TEMP,    0.001},
+                 {PARAMS_ID_MENTS_EPSILON, 0.3},
+                 {PARAMS_ID_UCT_ER_C2,     0.3}},
+                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+
+            run_ids->push_back(RunID(DEEP_SEA_ENV_ID, env_instance_id, expr_id, ALG_ID_ER_TENTS,
+                {{PARAMS_ID_MENTS_TEMP,    0.01},
+                 {PARAMS_ID_MENTS_EPSILON, 2.0},
+                 {PARAMS_ID_UCT_ER_C2,     0.1}},
+                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+        };
+
+        if (expr_id == DS20_201_BASELINES) {
+            run_deep_sea_baselines(DS_20_ID, /*num_trials=*/50000, /*max_trial_length=*/25);
+            return run_ids;
+        }
+        if (expr_id == DS20_202_ER) {
+            run_deep_sea_er(DS_20_ID, /*num_trials=*/50000, /*max_trial_length=*/25);
+            return run_ids;
+        }
+        if (expr_id == DS30_203_BASELINES) {
+            run_deep_sea_baselines(DS_30_ID, /*num_trials=*/100000, /*max_trial_length=*/35);
+            return run_ids;
+        }
+        if (expr_id == DS30_204_ER) {
+            run_deep_sea_er(DS_30_ID, /*num_trials=*/100000, /*max_trial_length=*/35);
+            return run_ids;
+        }
+
+        // ============================================================================
+        // NChain / RiverSwim (greedy-trap exploration benchmark).
+        // LEFT at pos=0 gives +0.05 (greedy trap). Goal reward +1 at pos=N-1, reached only
+        // by repeated RIGHT moves against the current (advance prob = 0.35). Classical UCT
+        // commits to LEFT for its immediate small reward; ER lifts the rarely-visited
+        // RIGHT chain enough for the goal to be discovered.
+        // ============================================================================
+
+        auto run_nchain_baselines = [&run_ids, &expr_id](
+            const string& env_instance_id, int num_trials, int max_trial_length)
+        {
+            int trials_log_delta = 100;
+            int mc_eval_trials_delta = 100;
+            int rollouts_per_mc_eval = 100;
+            int num_repeats = 10;
+            int num_threads = 16;
+            int eval_threads = 16;
+
+            vector<string> alg_ids = { ALG_ID_UCT, ALG_ID_FIXED_DEPTH_UCT, ALG_ID_PUCT, ALG_ID_MENTS, ALG_ID_RENTS, ALG_ID_TENTS, ALG_ID_DENTS, ALG_ID_DBMENTS, ALG_ID_EST };
+            for (string alg_id : alg_ids) {
+                unordered_map<string,double> alg_params;
+                if (alg_id == ALG_ID_UCT || alg_id == ALG_ID_FIXED_DEPTH_UCT || alg_id == ALG_ID_PUCT) {
+                    alg_params[PARAMS_ID_UCT_BIAS] = UctManagerArgs::USE_AUTO_BIAS;
+                    alg_params[PARAMS_ID_UCT_POWER_MEAN_P] = 1.0;
+                } else if (alg_id == ALG_ID_EST) {
+                    alg_params[PARAMS_ID_MENTS_TEMP] = 0.1;
+                    alg_params[PARAMS_ID_MENTS_EPSILON] = 2.0;
+                } else if (alg_id == ALG_ID_DENTS || alg_id == ALG_ID_DBMENTS) {
+                    alg_params[PARAMS_ID_MENTS_TEMP] = 0.1;
+                    alg_params[PARAMS_ID_MENTS_EPSILON] = 1.0;
+                    if (alg_id == ALG_ID_DENTS) alg_params[PARAMS_ID_DENTS_TEMP] = 1.0;
+                } else {
+                    alg_params[PARAMS_ID_MENTS_TEMP] = 0.01;
+                    alg_params[PARAMS_ID_MENTS_EPSILON] = (alg_id == ALG_ID_RENTS) ? 2.0 : 1.0;
+                    alg_params[PARAMS_ID_MENTS_POWER_MEAN_P] = 1.0;
+                }
+                run_ids->push_back(RunID(NCHAIN_ENV_ID, env_instance_id, expr_id, alg_id, alg_params,
+                    num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                    rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+            }
+        };
+
+        auto run_nchain_er = [&run_ids, &expr_id](
+            const string& env_instance_id, int num_trials, int max_trial_length)
+        {
+            int trials_log_delta = 100;
+            int mc_eval_trials_delta = 100;
+            int rollouts_per_mc_eval = 100;
+            int num_repeats = 10;
+            int num_threads = 16;
+            int eval_threads = 16;
+
+            run_ids->push_back(RunID(NCHAIN_ENV_ID, env_instance_id, expr_id, ALG_ID_ER_UCT,
+                {{PARAMS_ID_UCT_BIAS,         UctManagerArgs::USE_AUTO_BIAS},
+                 {PARAMS_ID_UCT_POWER_MEAN_P, std::numeric_limits<double>::infinity()},
+                 {PARAMS_ID_UCT_ER_C2,        1.0}},
+                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+
+            run_ids->push_back(RunID(NCHAIN_ENV_ID, env_instance_id, expr_id, ALG_ID_ER_FIXED_DEPTH_UCT,
+                {{PARAMS_ID_UCT_BIAS,         UctManagerArgs::USE_AUTO_BIAS},
+                 {PARAMS_ID_UCT_POWER_MEAN_P, 1.0},
+                 {PARAMS_ID_UCT_ER_C2,        50.0}},
+                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+
+            run_ids->push_back(RunID(NCHAIN_ENV_ID, env_instance_id, expr_id, ALG_ID_ER_MENTS,
+                {{PARAMS_ID_MENTS_TEMP,    0.001},
+                 {PARAMS_ID_MENTS_EPSILON, 2.0},
+                 {PARAMS_ID_UCT_ER_C2,     0.05}},
+                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+
+            run_ids->push_back(RunID(NCHAIN_ENV_ID, env_instance_id, expr_id, ALG_ID_ER_RENTS,
+                {{PARAMS_ID_MENTS_TEMP,    0.001},
+                 {PARAMS_ID_MENTS_EPSILON, 0.3},
+                 {PARAMS_ID_UCT_ER_C2,     0.3}},
+                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+
+            run_ids->push_back(RunID(NCHAIN_ENV_ID, env_instance_id, expr_id, ALG_ID_ER_TENTS,
+                {{PARAMS_ID_MENTS_TEMP,    0.01},
+                 {PARAMS_ID_MENTS_EPSILON, 2.0},
+                 {PARAMS_ID_UCT_ER_C2,     0.1}},
+                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+        };
+
+        if (expr_id == NC6_211_BASELINES) {
+            run_nchain_baselines(NC_6_ID, /*num_trials=*/30000, /*max_trial_length=*/30);
+            return run_ids;
+        }
+        if (expr_id == NC6_212_ER) {
+            run_nchain_er(NC_6_ID, /*num_trials=*/30000, /*max_trial_length=*/30);
+            return run_ids;
+        }
+        if (expr_id == NC10_213_BASELINES) {
+            run_nchain_baselines(NC_10_ID, /*num_trials=*/80000, /*max_trial_length=*/60);
+            return run_ids;
+        }
+        if (expr_id == NC10_214_ER) {
+            run_nchain_er(NC_10_ID, /*num_trials=*/80000, /*max_trial_length=*/60);
+            return run_ids;
+        }
+
+        // ============================================================================
+        // Hyperparameter search blocks for Deep Sea and NChain.
+        //   *_HPS:     sweeps bias for UCT-family (including ER variants at fixed er_c2=1)
+        //              and (temp, eps) for MENTS-family baselines, mirroring FL12_051_HPS.
+        //   *_ER_TUNE: sweeps the ER hyperparameters (bias, er_c2, power_mean_p) for
+        //              ER-UCT/ER-FIXED-DEPTH-UCT and (temp, eps, er_c2) for
+        //              ER-MENTS/ER-RENTS/ER-TENTS, mirroring FL12_063_ER_TUNE.
+        // ============================================================================
+
+        auto add_hps = [&run_ids, &expr_id](
+            const string& env_id,
+            const string& env_instance_id,
+            int num_trials,
+            int max_trial_length,
+            int rollouts_per_mc_eval)
+        {
+            int trials_log_delta = 200;
+            int mc_eval_trials_delta = 200;
+            int num_repeats = 5;
+            int num_threads = 16;
+            int eval_threads = 16;
+
+            // UCT family (incl. ER variants at fixed er_c2 = 1.0)
+            vector<string> uct_alg_ids = {ALG_ID_UCT, ALG_ID_ER_UCT, ALG_ID_FIXED_DEPTH_UCT,
+                                          ALG_ID_ER_FIXED_DEPTH_UCT, ALG_ID_PUCT};
+            vector<double> uct_biases = {UctManagerArgs::USE_AUTO_BIAS, 0.1, 1.0, 10.0};
+            for (const string& alg_id : uct_alg_ids) {
+                for (double bias : uct_biases) {
+                    unordered_map<string,double> alg_params = {{PARAMS_ID_UCT_BIAS, bias}};
+                    if (alg_id == ALG_ID_ER_UCT || alg_id == ALG_ID_ER_FIXED_DEPTH_UCT) {
+                        alg_params[PARAMS_ID_UCT_ER_C2] = 1.0;
+                    }
+                    run_ids->push_back(RunID(env_id, env_instance_id, expr_id, alg_id, alg_params,
+                        num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                        rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+                }
+            }
+
+            // MENTS family (baselines only; ER variants are tuned in *_ER_TUNE)
+            vector<string> ments_alg_ids = {ALG_ID_MENTS, ALG_ID_RENTS, ALG_ID_TENTS,
+                                            ALG_ID_DENTS, ALG_ID_DBMENTS, ALG_ID_EST};
+            vector<double> temps = {0.001, 0.01, 0.1, 1.0};
+            vector<double> epss = {0.1, 0.3, 1.0, 2.0};
+            for (const string& alg_id : ments_alg_ids) {
+                for (double temp : temps) {
+                    for (double eps : epss) {
+                        unordered_map<string,double> alg_params = {
+                            {PARAMS_ID_MENTS_TEMP, temp},
+                            {PARAMS_ID_MENTS_EPSILON, eps}
+                        };
+                        if (alg_id == ALG_ID_DENTS) {
+                            alg_params[PARAMS_ID_DENTS_TEMP] = 1.0;
+                        }
+                        run_ids->push_back(RunID(env_id, env_instance_id, expr_id, alg_id, alg_params,
+                            num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                            rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+                    }
+                }
+            }
+        };
+
+        auto add_er_tune = [&run_ids, &expr_id](
+            const string& env_id,
+            const string& env_instance_id,
+            int num_trials,
+            int max_trial_length,
+            int rollouts_per_mc_eval)
+        {
+            int trials_log_delta = 200;
+            int mc_eval_trials_delta = 200;
+            int num_repeats = 5;
+            int num_threads = 16;
+            int eval_threads = 16;
+
+            // ER-UCT family
+            vector<string> er_uct_alg_ids = {ALG_ID_ER_UCT, ALG_ID_ER_FIXED_DEPTH_UCT};
+            vector<double> uct_biases = {UctManagerArgs::USE_AUTO_BIAS, 1.0, 10.0};
+            vector<double> er_c2s = {0.05, 0.1, 1.0, 10.0, 50.0};
+            vector<double> power_mean_ps = {1.0, 2.0, std::numeric_limits<double>::infinity()};
+            for (const string& alg_id : er_uct_alg_ids) {
+                for (double bias : uct_biases) {
+                    for (double er_c2 : er_c2s) {
+                        for (double pmp : power_mean_ps) {
+                            unordered_map<string,double> alg_params = {
+                                {PARAMS_ID_UCT_BIAS, bias},
+                                {PARAMS_ID_UCT_ER_C2, er_c2},
+                                {PARAMS_ID_UCT_POWER_MEAN_P, pmp}
+                            };
+                            run_ids->push_back(RunID(env_id, env_instance_id, expr_id, alg_id, alg_params,
+                                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+                        }
+                    }
+                }
+            }
+
+            // ER-MENTS family
+            vector<string> er_ments_alg_ids = {ALG_ID_ER_MENTS, ALG_ID_ER_RENTS, ALG_ID_ER_TENTS};
+            vector<double> temps = {0.001, 0.01, 0.1};
+            vector<double> epss = {0.3, 1.0, 2.0};
+            vector<double> er_c2s_ments = {0.05, 0.1, 0.5, 5.0};
+            for (const string& alg_id : er_ments_alg_ids) {
+                for (double temp : temps) {
+                    for (double eps : epss) {
+                        for (double er_c2 : er_c2s_ments) {
+                            unordered_map<string,double> alg_params = {
+                                {PARAMS_ID_MENTS_TEMP, temp},
+                                {PARAMS_ID_MENTS_EPSILON, eps},
+                                {PARAMS_ID_UCT_ER_C2, er_c2}
+                            };
+                            run_ids->push_back(RunID(env_id, env_instance_id, expr_id, alg_id, alg_params,
+                                num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                                rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+                        }
+                    }
+                }
+            }
+        };
+
+        if (expr_id == DS20_205_HPS) {
+            add_hps(DEEP_SEA_ENV_ID, DS_20_ID, /*num_trials=*/50000, /*max_trial_length=*/25, /*rollouts=*/50);
+            return run_ids;
+        }
+        if (expr_id == DS20_206_ER_TUNE) {
+            add_er_tune(DEEP_SEA_ENV_ID, DS_20_ID, /*num_trials=*/50000, /*max_trial_length=*/25, /*rollouts=*/50);
+            return run_ids;
+        }
+        if (expr_id == DS30_207_HPS) {
+            add_hps(DEEP_SEA_ENV_ID, DS_30_ID, /*num_trials=*/100000, /*max_trial_length=*/35, /*rollouts=*/50);
+            return run_ids;
+        }
+        if (expr_id == DS30_208_ER_TUNE) {
+            add_er_tune(DEEP_SEA_ENV_ID, DS_30_ID, /*num_trials=*/100000, /*max_trial_length=*/35, /*rollouts=*/50);
+            return run_ids;
+        }
+        if (expr_id == NC6_215_HPS) {
+            add_hps(NCHAIN_ENV_ID, NC_6_ID, /*num_trials=*/30000, /*max_trial_length=*/30, /*rollouts=*/100);
+            return run_ids;
+        }
+        if (expr_id == NC6_216_ER_TUNE) {
+            add_er_tune(NCHAIN_ENV_ID, NC_6_ID, /*num_trials=*/30000, /*max_trial_length=*/30, /*rollouts=*/100);
+            return run_ids;
+        }
+        if (expr_id == NC10_217_HPS) {
+            add_hps(NCHAIN_ENV_ID, NC_10_ID, /*num_trials=*/80000, /*max_trial_length=*/60, /*rollouts=*/100);
+            return run_ids;
+        }
+        if (expr_id == NC10_218_ER_TUNE) {
+            add_er_tune(NCHAIN_ENV_ID, NC_10_ID, /*num_trials=*/80000, /*max_trial_length=*/60, /*rollouts=*/100);
             return run_ids;
         }
 

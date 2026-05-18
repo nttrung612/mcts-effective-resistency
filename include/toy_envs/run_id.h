@@ -13,6 +13,8 @@ static const std::string DCHAIN_ENV_ID = "dchain_env";
 static const std::string FL_ENV_ID = "frozen_lake_env";
 static const std::string SAILING_ENV_ID = "sailing_env";
 static const std::string TAXI_ENV_ID = "taxi_env";
+static const std::string DEEP_SEA_ENV_ID = "deep_sea_env";
+static const std::string NCHAIN_ENV_ID = "nchain_env";
 
 // chain env instance ids
 static const std::string D_10_ID = "10-1.0";
@@ -36,6 +38,15 @@ static const std::string S_6_ID = "6";
 static const std::string S_6_TEST_ID = "6_test";
 static const std::string TX_5_ID = "5";
 static const std::string TX_5_TEST_ID = "5_test";
+
+// deep sea env instance ids (NxN triangular grid)
+static const std::string DS_10_ID = "10";
+static const std::string DS_20_ID = "20";
+static const std::string DS_30_ID = "30";
+
+// nchain (riverswim) env instance ids (N states in a row)
+static const std::string NC_6_ID = "6";
+static const std::string NC_10_ID = "10";
 // static const std::string S_5_ID = "5";
 // static const std::string S_7_ID = "7";
 // static const std::string S_10_ID = "10";
@@ -84,6 +95,26 @@ static const std::string TX5_103_ER_TUNE = "103_tx5_er_tune";
 static const std::string TX5_104_BASELINES = "104_tx5_baselines";
 static const std::string TX5_105_ER_TEST = "105_tx5_er_test";
 static const std::string TX5_106_BASELINES_TEST = "106_tx5_baselines_test";
+
+// expr ids - deep sea (hard exploration benchmark, bsuite-style)
+static const std::string DS20_201_BASELINES = "201_ds20_baselines";
+static const std::string DS20_202_ER = "202_ds20_er";
+static const std::string DS30_203_BASELINES = "203_ds30_baselines";
+static const std::string DS30_204_ER = "204_ds30_er";
+static const std::string DS20_205_HPS = "205_ds20_hps";
+static const std::string DS20_206_ER_TUNE = "206_ds20_er_tune";
+static const std::string DS30_207_HPS = "207_ds30_hps";
+static const std::string DS30_208_ER_TUNE = "208_ds30_er_tune";
+
+// expr ids - nchain / riverswim (greedy-trap exploration benchmark)
+static const std::string NC6_211_BASELINES = "211_nc6_baselines";
+static const std::string NC6_212_ER = "212_nc6_er";
+static const std::string NC10_213_BASELINES = "213_nc10_baselines";
+static const std::string NC10_214_ER = "214_nc10_er";
+static const std::string NC6_215_HPS = "215_nc6_hps";
+static const std::string NC6_216_ER_TUNE = "216_nc6_er_tune";
+static const std::string NC10_217_HPS = "217_nc10_hps";
+static const std::string NC10_218_ER_TUNE = "218_nc10_er_tune";
 
 // expr ids - app gridworld
 static const std::string FL8_053_SENS = "053_fl8_1_0";
