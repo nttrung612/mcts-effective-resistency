@@ -2830,7 +2830,7 @@ namespace thts {
         {
             int trials_log_delta = 200;
             int mc_eval_trials_delta = 200;
-            int num_repeats = 5;
+            int num_repeats = 10;
             int num_threads = 16;
             int eval_threads = 16;
 
@@ -2882,7 +2882,7 @@ namespace thts {
         {
             int trials_log_delta = 200;
             int mc_eval_trials_delta = 200;
-            int num_repeats = 5;
+            int num_repeats = 10;
             int num_threads = 16;
             int eval_threads = 16;
 
