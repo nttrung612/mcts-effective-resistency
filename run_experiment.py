@@ -1,14 +1,20 @@
 """
-End-to-end automation for the ER-augmented MCTS comparison runs.
+End-to-end automation for ER-augmented MCTS comparison runs and baseline HPS sweeps.
 
-For each requested environment (fl12 / s6 / tx5) the orchestrator:
+For each requested environment the orchestrator:
   1. (optional) builds thts-run-toy-env via make
-  2. runs the *_er_tune expr to grid-search the ER-augmented algorithms
-  3. runs the *_baselines expr (paired -- same instance, num_trials, num_repeats)
-  4. picks the top-1 winner per ER algorithm via find_best_hyperparams.py
+  2. runs the *tune* expr (ER tune or baselines HPS, depending on env config)
+  3. (optional) runs a paired *baselines* expr -- same instance / num_trials /
+     num_repeats -- if the env config defines `baseline_expr`
+  4. picks the top-1 winner per algorithm via find_best_hyperparams.py
   5. writes a winners JSON next to the tune results
-  6. invokes plot.py compare_<env>_tune --er-best-json=<path> to produce the
-     ER-vs-baseline plot under plots/
+  6. (optional) invokes plot.py <plot_tag> --er-best-json=<path> to produce the
+     comparison plot under plots/, if the env config defines `plot_tag`
+
+Two flavors of env config:
+  - ER-comparison envs (fl12 / s6 / tx5): full pipeline with paired baselines + plot.
+  - HPS-only envs (fl16 / s10): only the HPS expr is run; winners JSON is written,
+    no paired baselines, no plot.
 
 Use --skip-tune / --skip-baselines / --plot-only to drive partial pipelines
 when iterating on plotting after a long tune run has already finished.
@@ -18,8 +24,12 @@ Examples
     # full pipeline for one env
     python run_experiment.py fl12
 
-    # full pipeline for all three envs
+    # full pipeline for all three ER-comparison envs
     python run_experiment.py fl12 s6 tx5
+
+    # baselines HPS only (no plot)
+    python run_experiment.py fl16
+    python run_experiment.py s10
 
     # tune already done, just rebuild the plot
     python run_experiment.py fl12 --plot-only
@@ -41,8 +51,11 @@ import subprocess
 import sys
 from typing import Dict, Optional
 
-# Each environment maps to its tune expr_id, paired baseline expr_id, results
-# subdirectory and plot tag. Add a new env here if you add an env to run_id.cpp.
+# Each environment maps to its tune expr_id (required), an optional paired
+# baseline expr_id, the results subdirectory, and an optional plot tag.
+# - If `baseline_expr` is omitted, the baselines step is skipped.
+# - If `plot_tag` is omitted, the plotting step is skipped.
+# Add a new env here if you add an env to run_id.cpp.
 ENV_CONFIGS: Dict[str, Dict[str, str]] = {
     "fl12": {
         "label":         "Frozen Lake 8x12",
@@ -64,6 +77,18 @@ ENV_CONFIGS: Dict[str, Dict[str, str]] = {
         "baseline_expr": "104_tx5_baselines",
         "results_root":  "results/taxi_env/5",
         "plot_tag":      "compare_tx5_tune",
+    },
+    # HPS-only entries (non-ER baselines hyperparameter search).
+    # No paired baseline run, no plot; just sweep + winners JSON.
+    "fl16": {
+        "label":         "Frozen Lake 8x16 (baselines HPS)",
+        "tune_expr":     "071_fl16_hps",
+        "results_root":  "results/frozen_lake_env/FL_8x16_test",
+    },
+    "s10": {
+        "label":         "Sailing 10x10 (baselines HPS)",
+        "tune_expr":     "121_s10_hps",
+        "results_root":  "results/sailing_env/10",
     },
 }
 
@@ -127,11 +152,14 @@ def process_env(env_key: str, args: argparse.Namespace) -> None:
     cfg = ENV_CONFIGS[env_key]
     print(f"\n>>> {cfg['label']} <<<", flush=True)
 
+    baseline_expr = cfg.get("baseline_expr")
+    plot_tag = cfg.get("plot_tag")
+
     if not args.plot_only:
         if not args.skip_tune:
             run_expr(cfg["tune_expr"])
-        if not args.skip_baselines:
-            run_expr(cfg["baseline_expr"])
+        if baseline_expr and not args.skip_baselines:
+            run_expr(baseline_expr)
 
     tune_dir = os.path.join(cfg["results_root"], cfg["tune_expr"])
     _print_header(f"FIND WINNERS: {tune_dir}")
@@ -142,8 +170,10 @@ def process_env(env_key: str, args: argparse.Namespace) -> None:
 
     json_path = write_winners_json(env_key, tune_dir, results)
 
-    if not args.skip_plot:
+    if plot_tag and not args.skip_plot:
         plot(env_key, json_path)
+    elif not plot_tag:
+        print(f"No plot_tag configured for {env_key}; skipping plot.", flush=True)
 
 
 def main() -> None:

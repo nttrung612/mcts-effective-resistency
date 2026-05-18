@@ -36,6 +36,7 @@ static const std::string FL_8x16_TEST = "FL_8x16_test";
 // sailing env instance ids
 static const std::string S_6_ID = "6";
 static const std::string S_6_TEST_ID = "6_test";
+static const std::string S_10_ID = "10";
 static const std::string TX_5_ID = "5";
 static const std::string TX_5_TEST_ID = "5_test";
 
@@ -80,8 +81,10 @@ static const std::string FL12_064_BASELINES = "064_fl12_baselines";
 static const std::string FL12_065_ER_TEST = "065_fl12_er_test";
 static const std::string FL12_066_BASELINES_TEST = "066_fl12_baselines_test";
 static const std::string FL16_050_TEST = "050_fl16_test";
+static const std::string FL16_071_HPS = "071_fl16_hps";
 
 static const std::string S6_091_HPS = "091_s6_hps";
+static const std::string S10_121_HPS = "121_s10_hps";
 static const std::string S6_092_TEST = "092_s6_test";
 static const std::string S6_093_ER_TUNE = "093_s6_er_tune";
 static const std::string S6_094_BASELINES = "094_s6_baselines";

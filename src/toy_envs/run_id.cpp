@@ -124,6 +124,8 @@ namespace thts {
                 return make_shared<SailingEnv>(6, 6);
             } else if (env_instance_id == S_6_TEST_ID) {
                 return make_shared<SailingEnv>(6, 6, SE);
+            } else if (env_instance_id == S_10_ID) {
+                return make_shared<SailingEnv>(10, 10);
             } else {
                 throw runtime_error("Not implemented yet");
             }
@@ -2961,6 +2963,81 @@ namespace thts {
         }
         if (expr_id == NC10_218_ER_TUNE) {
             add_er_tune(NCHAIN_ENV_ID, NC_10_ID, /*num_trials=*/80000, /*max_trial_length=*/60, /*rollouts=*/100);
+            return run_ids;
+        }
+
+        // ============================================================================
+        // Baseline-only hyperparameter search blocks (no ER variants).
+        // Sweeps bias for UCT / FixedDepthUCT / PUCT and (temp, eps) for the
+        // MENTS-family baselines, with an optional default_q_value override for
+        // negative-reward environments like Sailing.
+        // ============================================================================
+
+        auto add_baselines_only_hps = [&run_ids, &expr_id](
+            const string& env_id,
+            const string& env_instance_id,
+            int num_trials,
+            int max_trial_length,
+            int rollouts_per_mc_eval,
+            double default_q_value)
+        {
+            int trials_log_delta = 250;
+            int mc_eval_trials_delta = 250;
+            int num_repeats = 10;
+            int num_threads = 16;
+            int eval_threads = 16;
+
+            // UCT family (baselines only, no ER variants)
+            vector<string> uct_alg_ids = {ALG_ID_UCT, ALG_ID_FIXED_DEPTH_UCT, ALG_ID_PUCT};
+            vector<double> uct_biases = {UctManagerArgs::USE_AUTO_BIAS, 0.1, 0.3, 1.0, 3.0, 10.0};
+            for (const string& alg_id : uct_alg_ids) {
+                for (double bias : uct_biases) {
+                    unordered_map<string,double> alg_params = {{PARAMS_ID_UCT_BIAS, bias}};
+                    run_ids->push_back(RunID(env_id, env_instance_id, expr_id, alg_id, alg_params,
+                        num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                        rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+                }
+            }
+
+            // MENTS family (baselines only, no ER variants)
+            vector<string> ments_alg_ids = {ALG_ID_MENTS, ALG_ID_RENTS, ALG_ID_TENTS,
+                                            ALG_ID_DENTS, ALG_ID_DBMENTS, ALG_ID_EST};
+            vector<double> temps = {0.001, 0.01, 0.05, 0.1, 0.5};
+            vector<double> epss = {0.1, 0.3, 1.0, 2.0, 5.0};
+            for (const string& alg_id : ments_alg_ids) {
+                for (double temp : temps) {
+                    for (double eps : epss) {
+                        unordered_map<string,double> alg_params = {
+                            {PARAMS_ID_MENTS_TEMP, temp},
+                            {PARAMS_ID_MENTS_EPSILON, eps},
+                            {PARAMS_ID_MENTS_DEFAULT_Q_VALUE, default_q_value}
+                        };
+                        if (alg_id == ALG_ID_DENTS) {
+                            alg_params[PARAMS_ID_DENTS_TEMP] = 1.0;
+                        }
+                        run_ids->push_back(RunID(env_id, env_instance_id, expr_id, alg_id, alg_params,
+                            num_trials, max_trial_length, trials_log_delta, mc_eval_trials_delta,
+                            rollouts_per_mc_eval, num_repeats, num_threads, eval_threads));
+                    }
+                }
+            }
+        };
+
+        // Frozen Lake 8x16 baselines HPS. Reward in [0, 1] (γ^(t+1) at goal, 0 elsewhere),
+        // so default_q_value = 0 is fine.
+        if (expr_id == FL16_071_HPS) {
+            add_baselines_only_hps(FL_ENV_ID, FL_8x16_TEST,
+                /*num_trials=*/150000, /*max_trial_length=*/100, /*rollouts=*/100,
+                /*default_q_value=*/0.0);
+            return run_ids;
+        }
+
+        // Sailing 10x10 baselines HPS. Reward is negative (per-step cost), so MENTS-family
+        // needs default_q_value = -200 to match the S6 HPS convention.
+        if (expr_id == S10_121_HPS) {
+            add_baselines_only_hps(SAILING_ENV_ID, S_10_ID,
+                /*num_trials=*/200000, /*max_trial_length=*/80, /*rollouts=*/250,
+                /*default_q_value=*/-200.0);
             return run_ids;
         }
 
